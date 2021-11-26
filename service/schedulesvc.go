@@ -11,6 +11,7 @@ import (
 
 	"github.com/galaxy-future/schedulx/api/types"
 	"github.com/galaxy-future/schedulx/pkg/tool"
+	"github.com/galaxy-future/schedulx/register/config"
 	"github.com/galaxy-future/schedulx/register/config/log"
 	"github.com/galaxy-future/schedulx/register/constant"
 	"github.com/galaxy-future/schedulx/repository"
@@ -261,7 +262,7 @@ func (s *ScheduleSvc) doInstr(ctx context.Context, instrSvcReq *InstrSvcReq) err
 	case instrSvc.MountSLB:
 	case instrSvc.UmountSLB:
 		// 逻辑判断账号配置
-		if strings.Trim(config.GlobalConfig.AliYunAccount.Region) == "" || config.GlobalConfig.AliYunAccount.Region == "" {
+		if strings.Trim(config.GlobalConfig.AliYunAccount.Region, "") == "" || config.GlobalConfig.AliYunAccount.Region == "" {
 			err = errors.New("aliyun region or account not empty")
 		}
 		instrSvcReq.BridgXSvcReq.InstGroup = instrSvcResp.NodeActSvcResp.InstGroup

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 
 	"github.com/galaxy-future/schedulx/register/config"
