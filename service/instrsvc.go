@@ -197,6 +197,7 @@ func (s *InstrSvc) bridgXShrinkAction(ctx context.Context, schedTaskId int64, br
 			TaskId:       bridgXSvcReq.TaskId,
 			InstanceList: instanceList,
 		}
+		bridgXSvcReq.Count = int64(len(instanceList))
 	}
 	resp := &InstrSvcResp{}
 	bridgXSvc = GetBridgXSvcInst()
