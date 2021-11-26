@@ -179,12 +179,12 @@ func (s *InstrSvc) bridgXShrinkAction(ctx context.Context, schedTaskId int64, br
 		// 主动获取 instances
 		log.Logger.Infof("fetch InstanceList")
 		instRepo := repository.GetInstanceRepoIns()
-		insts, err := instRepo.InstsQueryByTaskId(ctx, schedTaskId, "", nil)
+		insts, err := instRepo.InstsQueryByTaskId(ctx, bridgXSvcReq.TaskId, "", nil)
 		if err != nil {
 			log.Logger.Error(err)
 			return nil, err
 		}
-		instanceList := make([]*types.InstanceInfo, len(insts))
+		instanceList := make([]*types.InstanceInfo, 0, len(insts))
 		for _, inst := range insts {
 			item := &types.InstanceInfo{
 				IpInner:    inst.IpInner,
