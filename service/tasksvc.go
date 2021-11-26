@@ -50,7 +50,7 @@ type TaskInfoSvcReq struct {
 }
 
 type TaskInfoSvcResp struct {
-	TaskInfo *types.TaskInfo
+	TaskInfo *types.TaskInfo `json:"task_info"`
 }
 
 func (s *TaskService) entryLog(ctx context.Context, method string, req interface{}) {

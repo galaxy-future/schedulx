@@ -16,7 +16,7 @@ type TaskInfoRequest struct {
 }
 
 type TaskInfoResponse struct {
-	TaskInfo *types.TaskInfo
+	TaskInfo *types.TaskInfo `json:"task_info"`
 }
 
 // Info 查询任务详情
