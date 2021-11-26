@@ -2,6 +2,8 @@ package bridgxcli
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -91,12 +93,15 @@ func (c *BridgXClient) ClusterExpand(ctx context.Context, cliReq *ClusterExpandR
 	log.Logger.Infof("url:%+v", url)
 	log.Logger.Infof("params:%+v", tool.ToJson(params))
 	log.Logger.Infof("resp:%+v", resp)
-
 	if err != nil {
 		log.Logger.Error(err)
 		return nil, err
 	}
-
+	if resp.Code != http.StatusOK {
+		err = fmt.Errorf("http code:%v | msg:%v", resp.Code, resp.Msg)
+		log.Logger.Error(err)
+		return nil, err
+	}
 	return resp, nil
 }
 
@@ -133,7 +138,11 @@ func (c *BridgXClient) ClusterShrink(ctx context.Context, cliReq *ClusterShrinkR
 		log.Logger.Error(err)
 		return nil, err
 	}
-
+	if resp.Code != http.StatusOK {
+		err = fmt.Errorf("http code:%v | msg:%v", resp.Code, resp.Msg)
+		log.Logger.Error(err)
+		return nil, err
+	}
 	return resp, err
 }
 
@@ -155,12 +164,15 @@ func (c *BridgXClient) TaskDescribe(ctx context.Context, cliRq *TaskDescribeReq)
 	log.Logger.Infof("url:%v", url)
 	log.Logger.Infof("params:%+v", tool.ToJson(params))
 	log.Logger.Infof("resp:%v", tool.ToJson(resp))
-
 	if err != nil {
 		log.Logger.Error(err)
 		return nil, err
 	}
-
+	if resp.Code != http.StatusOK {
+		err = fmt.Errorf("http code:%v | msg:%v", resp.Code, resp.Msg)
+		log.Logger.Error(err)
+		return nil, err
+	}
 	return resp, err
 }
 
@@ -194,7 +206,11 @@ func (c *BridgXClient) TaskInstances(ctx context.Context, cliReq *TaskInstancesR
 		log.Logger.Error(err)
 		return nil, err
 	}
-
+	if resp.Code != http.StatusOK {
+		err = fmt.Errorf("http code:%v | msg:%v", resp.Code, resp.Msg)
+		log.Logger.Error(err)
+		return nil, err
+	}
 	return resp, err
 }
 
@@ -220,7 +236,11 @@ func (c *BridgXClient) GetCLusterByName(ctx context.Context, cliReq *GetCLusterB
 		log.Logger.Error(err)
 		return nil, err
 	}
-
+	if resp.Code != http.StatusOK {
+		err = fmt.Errorf("http code:%v | msg:%v", resp.Code, resp.Msg)
+		log.Logger.Error(err)
+		return nil, err
+	}
 	return resp, nil
 }
 
