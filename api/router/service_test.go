@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/galaxy-future/schedulx/api/handler"
@@ -16,10 +17,11 @@ import (
 )
 
 const (
-	authToken = "eyJhbGcibdVuLh--ixOYqecTrfALPp6xmAV00"
+	authToken = "eyJhbGciOiJIUzI1ktah6Dv6jkqk2_TQzBwXpwWCYg"
 )
 
 func TestMain(m *testing.M) {
+	os.Setenv("env", "local")
 	config.Init("../../register/conf/config.yml")
 	log.Init()
 	log.Logger.Info("TestMain Start ...")
