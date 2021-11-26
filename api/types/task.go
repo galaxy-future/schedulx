@@ -93,7 +93,7 @@ type Instance struct {
 
 type TaskInfo struct {
 	TaskStatus string `json:"task_status"`
-	TaskStep   string `json:"TaskStep"`
+	TaskStep   string `json:"task_step"`
 	InstCnt    int64  `json:"inst_cnt"`
 	Msg        string `json:"msg"`
 	Operator   string `json:"operator"`
