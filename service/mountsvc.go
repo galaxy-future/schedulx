@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 
 	"github.com/galaxy-future/schedulx/register/config"
@@ -44,7 +45,6 @@ func (mou *MountService) Mount(ctx context.Context, svcReq *ExposeMountSvcReq) (
 	// 分页添加
 	insListLen := len(svcReq.InstanceList)
 	insListInfo := svcReq.InstanceList
-
 	ipInner := []string{}
 	serverList := []alb.AddServersToServerGroupServers{}
 	if insListLen < constant.ALIYUNAddServerGroupLenMax {
