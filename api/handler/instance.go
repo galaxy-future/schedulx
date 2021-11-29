@@ -29,9 +29,9 @@ func (t *Task) InstanceList(ctx *gin.Context) {
 	total, instances := service.GetTaskSvcInst().InstanceList(ctx, req.PageNum, req.PageSize, req.TaskId, types.InstanceStatus(req.InstanceStatus))
 
 	ret := struct {
-		Pager        types.Pager      `json:"pager"`
-		InstanceList []types.InstInfo `json:"instance_list"`
-		TaskId       int              `json:"task_id"`
+		Pager        types.Pager          `json:"pager"`
+		InstanceList []types.InstInfoResp `json:"instance_list"`
+		TaskId       int                  `json:"task_id"`
 	}{
 		Pager: types.Pager{
 			PagerNum:  req.PageNum,
