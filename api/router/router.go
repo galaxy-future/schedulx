@@ -54,6 +54,7 @@ func Init() *gin.Engine {
 		{
 			h := &handler.Task{}
 			taskPath.GET("info", h.Info)
+			taskPath.GET("instancelist", h.InstanceList)
 		}
 	}
 	return router

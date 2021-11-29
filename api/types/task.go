@@ -99,3 +99,10 @@ type TaskInfo struct {
 	Operator   string `json:"operator"`
 	ExecType   string `json:"exec_type"`
 }
+
+type InstInfo struct {
+	InstanceId string         `json:"instance_id"`
+	IpInner    string         `json:"ip_inner"`
+	IpOuter    string         `json:"ip_outer"`
+	Status     InstanceStatus `json:"instance_status"`
+}
