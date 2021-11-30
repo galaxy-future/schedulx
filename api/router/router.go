@@ -50,6 +50,12 @@ func Init() *gin.Engine {
 			tmplExpandPath.POST("update", h.Update)
 			tmplExpandPath.POST("delete", h.Delete)
 		}
+		taskPath := v1Api.Group("schedulx/task/")
+		{
+			h := &handler.Task{}
+			taskPath.GET("info", h.Info)
+			taskPath.GET("instancelist", h.InstanceList)
+		}
 	}
 	return router
 }

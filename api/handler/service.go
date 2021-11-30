@@ -21,6 +21,7 @@ type ServiceExpandHttpRequest struct {
 }
 
 type ServiceExpandHttpResponse struct {
+	TaskId int64 `json:"task_id"`
 }
 
 type ServiceShrinkHttpRequest struct {
@@ -30,6 +31,7 @@ type ServiceShrinkHttpRequest struct {
 }
 
 type ServiceShrinkHttpResponse struct {
+	TaskId int64 `json:"task_id"`
 }
 
 type ServiceCreateHttpRequest struct {
@@ -66,12 +68,15 @@ func (h *Service) Expand(ctx *gin.Context) {
 			ExecType:         httpReq.ExecType,
 		},
 	}
-	_, err = scheduleSvc.ExecAct(ctx, tmplSvcReq, scheduleSvc.Expand)
+	resp, err := scheduleSvc.ExecAct(ctx, tmplSvcReq, scheduleSvc.Expand)
 	if err != nil {
 		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
-	MkResponse(ctx, http.StatusOK, "success", nil)
+	data := &ServiceExpandHttpResponse{
+		TaskId: resp.(*service.ScheduleSvcResp).ServiceExpandSvcResp.TaskId,
+	}
+	MkResponse(ctx, http.StatusOK, "success", data)
 	return
 }
 
@@ -87,8 +92,6 @@ func (h *Service) Shrink(ctx *gin.Context) {
 	}
 	if httpReq.ExecType == "" {
 		httpReq.ExecType = constant.TaskExecTypeManual
-		//MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
-		//return
 	}
 	scheduleSvc := service.GetScheduleSvcInst()
 	tmplSvcReq := &service.ScheduleSvcReq{
@@ -98,12 +101,15 @@ func (h *Service) Shrink(ctx *gin.Context) {
 			ExecType:         httpReq.ExecType,
 		},
 	}
-	_, err = scheduleSvc.ExecAct(ctx, tmplSvcReq, scheduleSvc.Shrink)
+	resp, err := scheduleSvc.ExecAct(ctx, tmplSvcReq, scheduleSvc.Shrink)
 	if err != nil {
 		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
-	MkResponse(ctx, http.StatusOK, "success", nil)
+	data := &ServiceShrinkHttpResponse{
+		TaskId: resp.(*service.ScheduleSvcResp).ServiceShrinkSvcResp.TaskId,
+	}
+	MkResponse(ctx, http.StatusOK, "success", data)
 	return
 }
 

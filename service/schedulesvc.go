@@ -53,7 +53,17 @@ type ServiceShrinkSvcReq struct {
 	ExecType         string `json:"exec_type"` // manual | auto
 }
 
+type ServiceExpandSvcResp struct {
+	TaskId int64 `json:"task_id"`
+}
+
+type ServiceShrinkSvcResp struct {
+	TaskId int64 `json:"task_id"`
+}
+
 type ScheduleSvcResp struct {
+	ServiceExpandSvcResp *ServiceExpandSvcResp
+	ServiceShrinkSvcResp *ServiceShrinkSvcResp
 }
 
 func (s *ScheduleSvc) entryLog(ctx context.Context, act string, req interface{}) {
@@ -86,7 +96,7 @@ func (s *ScheduleSvc) ExecAct(ctx context.Context, args interface{}, act types.A
 
 func (s *ScheduleSvc) expandAction(ctx context.Context, svcReq *ServiceExpandSvcReq) (*ScheduleSvcResp, error) {
 	var err error
-	resp := &ScheduleSvcResp{}
+	resp := &ServiceExpandSvcResp{}
 	// 获取 tmpl
 	tmplRepo := repository.GetScheduleTemplateRepoInst()
 	schedTmpl, err := tmplRepo.GetSchedTmplBySvcClusterId(svcReq.ServiceClusterId, constant.ScheduleTypeExpand)
@@ -96,13 +106,13 @@ func (s *ScheduleSvc) expandAction(ctx context.Context, svcReq *ServiceExpandSvc
 	// 创建 task
 	taskRepo := repository.TaskRepo{}
 	userName := ctx.Value(constant.CtxUserNameKey)
-	taskId, err := taskRepo.CreateTask(ctx, schedTmpl.Id, svcReq.Count, cast.ToString(userName), svcReq.ExecType)
+	schedTaskId, err := taskRepo.CreateTask(ctx, schedTmpl.Id, svcReq.Count, cast.ToString(userName), svcReq.ExecType)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
 		if err != nil {
-			_ = taskRepo.UpdateTaskStatus(ctx, taskId, types.TaskStatusFail, err.Error())
+			_ = taskRepo.UpdateTaskStatus(ctx, schedTaskId, types.TaskStatusFail, err.Error())
 			return
 		}
 	}()
@@ -120,7 +130,7 @@ func (s *ScheduleSvc) expandAction(ctx context.Context, svcReq *ServiceExpandSvc
 	}
 	instrSvcReq := &InstrSvcReq{
 		ServiceName:    schedTmpl.ServiceName,
-		ScheduleTaskId: taskId, // 用于在执行 instr 中，记录在 bridgx 和 nodeact 中生成的 task_id
+		ScheduleTaskId: schedTaskId,
 		BridgXSvcReq: &BridgXSvcReq{
 			Count:       svcReq.Count,
 			ClusterName: schedTmpl.BridgxClusname,
@@ -131,10 +141,10 @@ func (s *ScheduleSvc) expandAction(ctx context.Context, svcReq *ServiceExpandSvc
 		var asyncErr error
 		defer func() {
 			if asyncErr != nil {
-				_ = taskRepo.UpdateTaskStatus(ctx, taskId, types.TaskStatusFail, asyncErr.Error())
+				_ = taskRepo.UpdateTaskStatus(ctx, schedTaskId, types.TaskStatusFail, asyncErr.Error())
 				return
 			}
-			_ = taskRepo.UpdateTaskStatus(ctx, taskId, types.TaskStatusSuccess, "")
+			_ = taskRepo.UpdateTaskStatus(ctx, schedTaskId, types.TaskStatusSuccess, "")
 		}()
 		for _, instrId := range instrGroup {
 			instrSvcReq.InstrId = instrId
@@ -144,12 +154,13 @@ func (s *ScheduleSvc) expandAction(ctx context.Context, svcReq *ServiceExpandSvc
 			}
 		}
 	}()
-	return resp, nil
+	resp.TaskId = schedTaskId
+	return &ScheduleSvcResp{ServiceExpandSvcResp: resp}, nil
 }
 
 func (s *ScheduleSvc) shrinkAction(ctx context.Context, svcReq *ServiceShrinkSvcReq) (*ScheduleSvcResp, error) {
 	var err error
-	resp := &ScheduleSvcResp{}
+	resp := &ServiceShrinkSvcResp{}
 	// 获取 tmpl
 	tmplRepo := repository.GetScheduleTemplateRepoInst()
 	schedReverseTmpl, err := tmplRepo.GetSchedTmplBySvcClusterId(svcReq.ServiceClusterId, constant.ScheduleTypeShrink)
@@ -160,13 +171,13 @@ func (s *ScheduleSvc) shrinkAction(ctx context.Context, svcReq *ServiceShrinkSvc
 	// 创建 task
 	userName := ctx.Value(constant.CtxUserNameKey)
 	taskRepo := repository.TaskRepo{}
-	taskId, err := taskRepo.CreateTask(ctx, schedReverseTmpl.Id, svcReq.Count, cast.ToString(userName), svcReq.ExecType)
+	schedTaskId, err := taskRepo.CreateTask(ctx, schedReverseTmpl.Id, svcReq.Count, cast.ToString(userName), svcReq.ExecType)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
 		if err != nil {
-			_ = taskRepo.UpdateTaskStatus(ctx, taskId, types.TaskStatusFail, err.Error())
+			_ = taskRepo.UpdateTaskStatus(ctx, schedTaskId, types.TaskStatusFail, err.Error())
 			return
 		}
 	}()
@@ -193,7 +204,7 @@ func (s *ScheduleSvc) shrinkAction(ctx context.Context, svcReq *ServiceShrinkSvc
 	// 依次执行指令集
 	instrSvcReq := &InstrSvcReq{
 		ServiceName:    schedReverseTmpl.ServiceName,
-		ScheduleTaskId: taskId, // 用于在执行 instr 中，记录在 bridgx 和 nodeact 中生成的 task_id
+		ScheduleTaskId: schedTaskId,
 		BridgXSvcReq: &BridgXSvcReq{
 			TaskId:      relationTaskid.BridgxTaskId,
 			ClusterName: schedReverseTmpl.BridgxClusname,
@@ -209,10 +220,10 @@ func (s *ScheduleSvc) shrinkAction(ctx context.Context, svcReq *ServiceShrinkSvc
 		var asyncErr error
 		defer func() {
 			if asyncErr != nil {
-				_ = taskRepo.UpdateTaskStatus(ctx, taskId, types.TaskStatusFail, asyncErr.Error())
+				_ = taskRepo.UpdateTaskStatus(ctx, schedTaskId, types.TaskStatusFail, asyncErr.Error())
 				return
 			}
-			_ = taskRepo.UpdateTaskStatus(ctx, taskId, types.TaskStatusSuccess, "")
+			_ = taskRepo.UpdateTaskStatus(ctx, schedTaskId, types.TaskStatusSuccess, "")
 		}()
 		for _, instrId := range instrGroup {
 			instrSvcReq.InstrId = instrId
@@ -222,8 +233,8 @@ func (s *ScheduleSvc) shrinkAction(ctx context.Context, svcReq *ServiceShrinkSvc
 			}
 		}
 	}()
-
-	return resp, nil
+	resp.TaskId = schedTaskId
+	return &ScheduleSvcResp{ServiceShrinkSvcResp: resp}, nil
 }
 
 func (s *ScheduleSvc) doInstr(ctx context.Context, instrSvcReq *InstrSvcReq) error {

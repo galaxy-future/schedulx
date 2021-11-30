@@ -29,6 +29,8 @@ service docker start >> /root/result.log
 
 docker pull $ImageUrl >> /root/result.log
 {{.DockerRun}} --name $PSM $ImageUrl >> /root/result.log
+
+{{if .Params.Port}}
 #检查镜像服务是否启动
 TIMES=5
 EXIST=0
@@ -51,7 +53,10 @@ else
   echo "service start error" >> /root/result.log
   echo "service start error"
 fi
-
+{{else}}
+echo "success" >> /root/result.log
+echo "success"
+{{end}}
 `
 
 func GetInitServiceCmd(params *types.ParamsServiceEnv, dockerRun string) (string, error) {

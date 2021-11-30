@@ -9,27 +9,6 @@ type CallBackNodeInitSvcReq struct {
 	Msg      string              `json:"msg"`
 }
 
-type TaskDescribeSvcReq struct {
-	TaskId         int64                `json:"task_id"`
-	InstanceStatus types.InstanceStatus `json:"instance_status"`
-}
-
-type TaskDescribeSvcResp struct {
-	TaskDescribe *types.TaskDescribe `json:"task_describe"`
-}
-
-type TaskInstancesSvcReq struct {
-	TaskId         int64                `json:"task_id"`
-	InstanceStatus types.InstanceStatus `json:"instance_status"`
-	PageNumber     int                  `json:"page_number"`
-	PageSize       int                  `json:"page_size"`
-}
-
-type TaskInstancesSvcResp struct {
-	InstancesList []*types.Instance `json:"instances_list"`
-	Pager         *types.Pager      `json:"pager"`
-}
-
 type ExposeMountSvcReq struct {
 	TaskId       int64                 `json:"task_id"`
 	InstanceList []*types.InstanceInfo `json:"instance_list"`

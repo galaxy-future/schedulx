@@ -39,7 +39,6 @@ func AesEncrypt(origData, key []byte) (string, error) {
 }
 
 func AesDecrypt(cryptedBase64 string, key []byte) ([]byte, error) {
-	//log.Logger.Infof("cryptedBase64:%s | key:%s", cryptedBase64, key)
 	crypted, err := base64.StdEncoding.DecodeString(cryptedBase64)
 	if err != nil {
 		return nil, err

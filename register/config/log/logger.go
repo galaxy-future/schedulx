@@ -1,6 +1,7 @@
 package log
 
 import (
+	"strings"
 	"time"
 
 	"github.com/galaxy-future/schedulx/register/config"
@@ -35,7 +36,7 @@ func createZapLogger() *zap.Logger {
 	}
 	writer := zapcore.AddSync(lumberJackLogger)
 	logLevel := zap.InfoLevel
-	switch config.GlobalConfig.LogLevel {
+	switch strings.ToLower(config.GlobalConfig.LogLevel) {
 	case "debug":
 		logLevel = zap.DebugLevel
 	case "info":

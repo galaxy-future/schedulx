@@ -90,3 +90,19 @@ type Instance struct {
 	CreateAt   string         `json:"create_at"`
 	Status     InstanceStatus `json:"status"`
 }
+
+type TaskInfo struct {
+	TaskStatus string `json:"task_status"`
+	TaskStep   string `json:"task_step"`
+	InstCnt    int64  `json:"inst_cnt"`
+	Msg        string `json:"msg"`
+	Operator   string `json:"operator"`
+	ExecType   string `json:"exec_type"`
+}
+
+type InstInfoResp struct {
+	InstanceId string         `json:"instance_id"`
+	IpInner    string         `json:"ip_inner"`
+	IpOuter    string         `json:"ip_outer"`
+	Status     InstanceStatus `json:"instance_status"`
+}

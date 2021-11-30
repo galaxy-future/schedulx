@@ -186,6 +186,30 @@ func (s *InstrSvc) bridgXShrinkAction(ctx context.Context, schedTaskId int64, br
 			_ = taskRepo.UpdateTaskStep(ctx, schedTaskId, types.TaskStepBridgxShrinkSucc, "")
 		}
 	}()
+	if bridgXSvcReq.InstGroup == nil || len(bridgXSvcReq.InstGroup.InstanceList) == 0 {
+		// 主动获取 instances
+		log.Logger.Infof("fetch InstanceList")
+		instRepo := repository.GetInstanceRepoIns()
+		insts, err := instRepo.InstsQueryByTaskId(ctx, bridgXSvcReq.TaskId, "", nil)
+		if err != nil {
+			log.Logger.Error(err)
+			return nil, err
+		}
+		instanceList := make([]*types.InstanceInfo, 0, len(insts))
+		for _, inst := range insts {
+			item := &types.InstanceInfo{
+				IpInner:    inst.IpInner,
+				IpOuter:    inst.IpOuter,
+				InstanceId: inst.InstanceId,
+			}
+			instanceList = append(instanceList, item)
+		}
+		bridgXSvcReq.InstGroup = &nodeact.InstanceGroup{
+			TaskId:       bridgXSvcReq.TaskId,
+			InstanceList: instanceList,
+		}
+		bridgXSvcReq.Count = int64(len(instanceList))
+	}
 	resp := &InstrSvcResp{}
 	bridgXSvc = GetBridgXSvcInst()
 	svcResp, err := bridgXSvc.ExecAct(ctx, bridgXSvcReq, bridgXSvc.Shrink)

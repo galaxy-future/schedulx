@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/galaxy-future/schedulx/api/handler"
@@ -16,10 +17,11 @@ import (
 )
 
 const (
-	authToken = "eyJhbGcibdVuLh--ixOYqecTrfALPp6xmAV00"
+	authToken = "xxxx"
 )
 
 func TestMain(m *testing.M) {
+	os.Setenv("env", "local")
 	config.Init("../../register/conf/config.yml")
 	log.Init()
 	log.Logger.Info("TestMain Start ...")
@@ -115,7 +117,7 @@ func TestService_Expand(t *testing.T) {
 			name: "ServiceExpandT",
 			args: args{
 				Method: "GET",
-				Url:    "/api/v1/schedulx/service/expand?service_cluster_id=57&count=2",
+				Url:    "/api/v1/schedulx/service/expand?service_cluster_id=93&count=2",
 			},
 		},
 	}

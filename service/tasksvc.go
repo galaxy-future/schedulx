@@ -24,6 +24,35 @@ func GetTaskSvcInst() *TaskService {
 	return taskServiceInstance
 }
 
+type TaskDescribeSvcReq struct {
+	TaskId         int64                `json:"task_id"`
+	InstanceStatus types.InstanceStatus `json:"instance_status"`
+}
+
+type TaskDescribeSvcResp struct {
+	TaskDescribe *types.TaskDescribe `json:"task_describe"`
+}
+
+type TaskInstancesSvcReq struct {
+	TaskId         int64                `json:"task_id"`
+	InstanceStatus types.InstanceStatus `json:"instance_status"`
+	PageNumber     int                  `json:"page_number"`
+	PageSize       int                  `json:"page_size"`
+}
+
+type TaskInstancesSvcResp struct {
+	InstancesList []*types.Instance `json:"instances_list"`
+	Pager         *types.Pager      `json:"pager"`
+}
+
+type TaskInfoSvcReq struct {
+	TaskId int64 `json:"task_id"`
+}
+
+type TaskInfoSvcResp struct {
+	TaskInfo *types.TaskInfo `json:"task_info"`
+}
+
 func (s *TaskService) entryLog(ctx context.Context, method string, req interface{}) {
 	log.Logger.Infof("entry log | method[%s] | req:%s", method, tool.ToJson(req))
 }
@@ -117,4 +146,51 @@ func (s *TaskService) Instances(ctx context.Context, svcReq *TaskInstancesSvcReq
 	resp.InstancesList = instances
 	resp.Pager = pager
 	return resp, nil
+}
+
+func (s *TaskService) Info(ctx context.Context, svcReq *TaskInfoSvcReq) (*TaskInfoSvcResp, error) {
+	var err error
+	repo := repository.GetTaskRepoInst()
+	task, err := repo.GetTask(ctx, svcReq.TaskId)
+	if err != nil {
+		log.Logger.Error(err)
+		return nil, err
+	}
+	return &TaskInfoSvcResp{
+		TaskInfo: &types.TaskInfo{
+			TaskStatus: task.TaskStatus,
+			TaskStep:   task.TaskStep,
+			InstCnt:    task.InstCnt,
+			Msg:        task.Msg,
+			Operator:   task.Operator,
+			ExecType:   task.ExecType,
+		},
+	}, nil
+}
+
+func (s *TaskService) InstanceList(ctx context.Context, page, pageSize, taskId int, taskStatus types.InstanceStatus) (int64, []types.InstInfoResp, error) {
+	fields := []string{"instance_id", "ip_inner", "ip_outer", "instance_status"}
+	if page == 0 {
+		page = 1
+	}
+	if pageSize == 0 || pageSize > 500 {
+		pageSize = 500
+	}
+	list, count, err := repository.GetInstanceRepoIns().InstsQueryByPage(ctx, int64(taskId), taskStatus, pageSize, page, fields)
+	if err != nil {
+		log.Logger.Errorf("error:%v", err)
+		return 0, nil, err
+	}
+
+	instanceInfo := make([]types.InstInfoResp, len(list))
+	for _, item := range list {
+		info := types.InstInfoResp{
+			InstanceId: item.InstanceId,
+			IpInner:    item.IpInner,
+			IpOuter:    item.IpOuter,
+			Status:     item.InstanceStatus,
+		}
+		instanceInfo = append(instanceInfo, info)
+	}
+	return count, instanceInfo, nil
 }

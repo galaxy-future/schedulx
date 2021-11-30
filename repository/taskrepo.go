@@ -143,3 +143,15 @@ func (r *TaskRepo) UpdateTaskStep(ctx context.Context, taskId int64, taskStep, m
 	}
 	return err
 }
+
+func (r *TaskRepo) GetTask(ctx context.Context, taskId int64) (*db.Task, error) {
+	var err error
+	obj := &db.Task{}
+	err = db.Get(taskId, obj)
+	if err != nil {
+		log.Logger.Error(err)
+		return nil, err
+	}
+
+	return obj, err
+}
