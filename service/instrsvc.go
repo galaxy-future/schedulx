@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -104,8 +105,16 @@ func (s *InstrSvc) ExecAct(ctx context.Context, args interface{}, act types.Acti
 	case s.NodeActInitSvc:
 		svcResp, err = s.nodeActInitSvcAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.NodeActSvcReq.Auth, svcReq.Instruction)
 	case s.MountSLB:
+		// 逻辑判断账号配置
+		if strings.Trim(config.GlobalConfig.AliYunAccount.Region, "") == "" || config.GlobalConfig.AliYunAccount.Region == "" {
+			err = errors.New("aliyun region or account not empty")
+		}
 		svcResp, err = s.nodeActMountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.Instruction)
 	case s.UmountSLB:
+		// 逻辑判断账号配置
+		if strings.Trim(config.GlobalConfig.AliYunAccount.Region, "") == "" || config.GlobalConfig.AliYunAccount.Region == "" {
+			err = errors.New("aliyun region or account not empty")
+		}
 		svcResp, err = s.nodeActUmountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.TaskId, svcReq.NodeActSvcReq.UmountSlbSvcReq, svcReq.Instruction)
 	default:
 		err = errors.New("no act matched")
