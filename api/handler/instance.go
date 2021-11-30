@@ -27,7 +27,10 @@ func (t *Task) InstanceList(ctx *gin.Context) {
 		return
 	}
 	total, instances, err := service.GetTaskSvcInst().InstanceList(ctx, req.PageNum, req.PageSize, req.TaskId, types.InstanceStatus(req.InstanceStatus))
-
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
 	ret := struct {
 		Pager        types.Pager          `json:"pager"`
 		InstanceList []types.InstInfoResp `json:"instance_list"`
@@ -40,10 +43,6 @@ func (t *Task) InstanceList(ctx *gin.Context) {
 		},
 		InstanceList: instances,
 		TaskId:       req.TaskId,
-	}
-	if err != nil {
-		MkResponse(ctx, http.StatusInternalServerError, err.Error(), ret)
-		return
 	}
 	MkResponse(ctx, http.StatusOK, errOK, ret)
 	return
