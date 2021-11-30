@@ -47,11 +47,11 @@ done
 
 if [ "1" == "$EXIST" ]
 then
-echo "success" >> /root/result.log
-echo "success"
+  echo "success" >> /root/result.log
+  echo "success"
 else
-echo "service start error" >> /root/result.log
-echo "service start error"
+  echo "service start error" >> /root/result.log
+  echo "service start error"
 fi
 {{else}}
 echo "success" >> /root/result.log
