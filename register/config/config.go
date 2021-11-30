@@ -12,15 +12,15 @@ import (
 var GlobalConfig *Config
 
 type Config struct {
-	DebugMode     bool           `yaml:"DebugMode"`
-	ServerPort    int            `yaml:"ServerPort"`
-	LogFile       string         `yaml:"LogFile"`
-	LogLevel      string         `yaml:"LogLevel"`
-	WriteDB       DBConfig       `yaml:"WriteDB"`
-	ReadDB        DBConfig       `yaml:"ReadDB"`
-	BridgXHost    string         `yaml:"BridgXHost"`
-	JwtToken      JwtTokenConfig `yaml:"JwtToken"`
-	AliYunAccount ALIYunAccount  `yaml:"AliYunAccount"`
+	DebugMode           bool                `yaml:"DebugMode"`
+	ServerPort          int                 `yaml:"ServerPort"`
+	LogFile             string              `yaml:"LogFile"`
+	LogLevel            string              `yaml:"LogLevel"`
+	WriteDB             DBConfig            `yaml:"WriteDB"`
+	ReadDB              DBConfig            `yaml:"ReadDB"`
+	BridgXHost          string              `yaml:"BridgXHost"`
+	JwtToken            JwtTokenConfig      `yaml:"JwtToken"`
+	AlibabaCloudAccount AlibabaCloudAccount `yaml:"AlibabaCloudAccount"`
 }
 
 type DBConfig struct {
@@ -43,7 +43,7 @@ type JwtTokenConfig struct {
 	BindContextKeyName     string `yaml:"BindContextKeyName"`
 }
 
-type ALIYunAccount struct {
+type AlibabaCloudAccount struct {
 	Region    string `yaml:"Region"`
 	AccessKey string `yaml:"AccessKey"`
 	Secret    string `yaml:"Secret"`

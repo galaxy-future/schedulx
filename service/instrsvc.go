@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"time"
 
@@ -105,19 +104,9 @@ func (s *InstrSvc) ExecAct(ctx context.Context, args interface{}, act types.Acti
 	case s.NodeActInitSvc:
 		svcResp, err = s.nodeActInitSvcAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.NodeActSvcReq.Auth, svcReq.Instruction)
 	case s.MountSLB:
-		// 逻辑判断账号配置
-		if ok := s.isAliYunConf(config.GlobalConfig.AliYunAccount); ok {
-			svcResp, err = s.nodeActMountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.Instruction)
-		} else {
-			err = errors.New("aliyun region or account not empty")
-		}
+		svcResp, err = s.nodeActMountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.Instruction)
 	case s.UmountSLB:
-		// 逻辑判断账号配置
-		if ok := s.isAliYunConf(config.GlobalConfig.AliYunAccount); ok {
-			svcResp, err = s.nodeActUmountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.TaskId, svcReq.NodeActSvcReq.UmountSlbSvcReq, svcReq.Instruction)
-		} else {
-			err = errors.New("aliyun region or account not empty")
-		}
+		svcResp, err = s.nodeActUmountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.TaskId, svcReq.NodeActSvcReq.UmountSlbSvcReq, svcReq.Instruction)
 	default:
 		err = errors.New("no act matched")
 	}
@@ -506,6 +495,11 @@ func (s *InstrSvc) CreateServiceEnvInstr(ctx context.Context, args *types.Servic
 func (s *InstrSvc) CreateMountSlbInstr(ctx context.Context, args *types.ParamsMount, tmplId, revTmplId int64, needReverse bool, dbo *gorm.DB) (int64, int64, error) {
 	//创建 instruction
 	var err error
+	if ok := IsAlibabaCloudAccountValid(config.GlobalConfig.AlibabaCloudAccount); !ok {
+		err = errors.New("AlibabaCloudAccount Config is invalid")
+		log.Logger.Error(err)
+		return 0, 0, err
+	}
 	params, _ := jsoniter.MarshalToString(&nodeact.ParamsMountInfo{
 		MountType:  args.MountType,
 		MountValue: args.MountValue,
@@ -552,11 +546,4 @@ func (s *InstrSvc) CreateUMountSlbInstr(ctx context.Context, args *types.ParamsM
 		return 0, err
 	}
 	return obj.Id, nil
-}
-
-func (s *InstrSvc) isAliYunConf(account config.ALIYunAccount) bool {
-	if strings.Trim(account.Region, " ") == "" || strings.Trim(account.AccessKey, " ") == "" || strings.Trim(account.Secret, " ") == "" {
-		return false
-	}
-	return true
 }

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/galaxy-future/schedulx/register/config"
+
 	"github.com/galaxy-future/schedulx/pkg/goph"
 	"github.com/galaxy-future/schedulx/register/config/log"
 )
@@ -44,4 +46,11 @@ func RemoteCmdExec(ctx context.Context, localCmd string, remoteScript string, ip
 	}
 	log.Logger.Infof("ssh client Run:%s", data)
 	return data, nil
+}
+
+func IsAlibabaCloudAccountValid(account config.AlibabaCloudAccount) bool {
+	if strings.Trim(account.Region, " ") == "" || strings.Trim(account.AccessKey, " ") == "" || strings.Trim(account.Secret, " ") == "" {
+		return false
+	}
+	return true
 }
