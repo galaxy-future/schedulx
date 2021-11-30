@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	authToken = "eyJhbGciOiJIUzI1ktah6Dv6jkqk2_TQzBwXpwWCYg"
+	authToken = "xxxx"
 )
 
 func TestMain(m *testing.M) {
@@ -117,7 +117,7 @@ func TestService_Expand(t *testing.T) {
 			name: "ServiceExpandT",
 			args: args{
 				Method: "GET",
-				Url:    "/api/v1/schedulx/service/expand?service_cluster_id=57&count=2",
+				Url:    "/api/v1/schedulx/service/expand?service_cluster_id=93&count=2",
 			},
 		},
 	}

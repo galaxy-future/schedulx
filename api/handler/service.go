@@ -76,7 +76,6 @@ func (h *Service) Expand(ctx *gin.Context) {
 	data := &ServiceExpandHttpResponse{
 		TaskId: resp.(*service.ScheduleSvcResp).ServiceExpandSvcResp.TaskId,
 	}
-
 	MkResponse(ctx, http.StatusOK, "success", data)
 	return
 }

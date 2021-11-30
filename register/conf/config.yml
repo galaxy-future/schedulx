@@ -2,6 +2,7 @@
 DebugMode: true #是否处于Debug模式
 ServerPort: 9091
 LogFile: /tmp/schedulx/logs/app.log
+LogLevel: info
 WriteDB:
   Name: schedulx
   Host: 127.0.0.1

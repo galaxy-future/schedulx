@@ -34,6 +34,7 @@ func CheckTokenAuth() gin.HandlerFunc {
 				if customClaims, err := CreateUserTokenFactory().ParseToken(token[1]); err == nil {
 					tokenKey := config.GlobalConfig.JwtToken.BindContextKeyName
 					ctx.Set(tokenKey, token[1])
+					//log.Logger.Debugf("key:%v | token:%v", tokenKey, token[1])
 					ctx.Set(constant.CtxUserNameKey, customClaims.Name)
 				}
 				ctx.Next()

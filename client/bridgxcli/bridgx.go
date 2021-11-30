@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/spf13/cast"
+
 	"github.com/galaxy-future/schedulx/pkg/tool"
 	"github.com/go-resty/resty/v2"
 
@@ -14,7 +16,6 @@ import (
 	"github.com/galaxy-future/schedulx/pkg/bridgx"
 	"github.com/galaxy-future/schedulx/register/config"
 	"github.com/galaxy-future/schedulx/register/config/log"
-	"github.com/spf13/cast"
 )
 
 type BridgXClient struct {
@@ -50,9 +51,8 @@ type TaskInstancesReq struct {
 
 func GetBridgXCli(ctx context.Context) *BridgXClient {
 	bridgXOnce.Do(func() {
-		authToken := ctx.Value(config.GlobalConfig.JwtToken.BindContextKeyName)
 		bridgXCli = &BridgXClient{
-			resty.New().SetTimeout(2 * time.Second).SetAuthToken(cast.ToString(authToken)), // default 2 second timeout
+			resty.New().SetTimeout(2 * time.Second),
 		}
 	})
 	return bridgXCli
@@ -89,7 +89,8 @@ func (c *BridgXClient) ClusterExpand(ctx context.Context, cliReq *ClusterExpandR
 		"count":        cliReq.Count,
 	}
 	url := c.genUrl(clusterExpandUrl)
-	_, err = c.httpClient.R().SetBody(params).SetResult(resp).SetError(resp).Post(url)
+	authToken := cast.ToString(ctx.Value(config.GlobalConfig.JwtToken.BindContextKeyName))
+	_, err = c.httpClient.R().SetBody(params).SetResult(resp).SetError(resp).SetAuthToken(authToken).Post(url)
 	log.Logger.Infof("url:%+v", url)
 	log.Logger.Infof("params:%+v", tool.ToJson(params))
 	log.Logger.Infof("resp:%+v", resp)
@@ -129,7 +130,8 @@ func (c *BridgXClient) ClusterShrink(ctx context.Context, cliReq *ClusterShrinkR
 		"count":        cliReq.Count,
 	}
 	url := c.genUrl(clusterShrinkUrl)
-	rr, err := c.httpClient.R().SetBody(params).SetResult(resp).SetError(resp).Post(url)
+	authToken := cast.ToString(ctx.Value(config.GlobalConfig.JwtToken.BindContextKeyName))
+	rr, err := c.httpClient.R().SetBody(params).SetResult(resp).SetError(resp).SetAuthToken(authToken).Post(url)
 	log.Logger.Infof("rr:%s", rr.Body())
 	log.Logger.Infof("url:%v", url)
 	log.Logger.Infof("params:%+v", tool.ToJson(params))
@@ -159,7 +161,8 @@ func (c *BridgXClient) TaskDescribe(ctx context.Context, cliRq *TaskDescribeReq)
 		"task_id": tool.Interface2String(cliRq.TaskId),
 	}
 	url := c.genUrl(taskDescribeUrl)
-	rr, err := c.httpClient.R().SetQueryParams(params).SetResult(resp).SetError(resp).Get(url)
+	authToken := cast.ToString(ctx.Value(config.GlobalConfig.JwtToken.BindContextKeyName))
+	rr, err := c.httpClient.R().SetQueryParams(params).SetResult(resp).SetError(resp).SetAuthToken(authToken).Get(url)
 	log.Logger.Infof("rr:%s", rr.Body())
 	log.Logger.Infof("url:%v", url)
 	log.Logger.Infof("params:%+v", tool.ToJson(params))
@@ -197,7 +200,8 @@ func (c *BridgXClient) TaskInstances(ctx context.Context, cliReq *TaskInstancesR
 		"page_size":       tool.Interface2String(cliReq.PageSize),
 	}
 	url := c.genUrl(taskInstancesUrl)
-	rr, err := c.httpClient.R().SetQueryParams(params).SetResult(resp).SetError(resp).Get(url)
+	authToken := cast.ToString(ctx.Value(config.GlobalConfig.JwtToken.BindContextKeyName))
+	rr, err := c.httpClient.R().SetQueryParams(params).SetResult(resp).SetError(resp).SetAuthToken(authToken).Get(url)
 	log.Logger.Infof("rr:%s", rr.Body())
 	log.Logger.Infof("url:%v", url)
 	log.Logger.Infof("params:%+v", tool.ToJson(params))
@@ -228,7 +232,8 @@ func (c *BridgXClient) GetCLusterByName(ctx context.Context, cliReq *GetCLusterB
 		return nil, err
 	}
 	url := tool.StrAppend(c.genUrl(clusterGetByNameUrl), "/", cliReq.ClusterName)
-	rr, err := c.httpClient.R().SetResult(resp).SetError(resp).Get(url)
+	authToken := cast.ToString(ctx.Value(config.GlobalConfig.JwtToken.BindContextKeyName))
+	rr, err := c.httpClient.R().SetResult(resp).SetError(resp).SetAuthToken(authToken).Get(url)
 	log.Logger.Infof("rr:%s", rr.Body())
 	log.Logger.Infof("url:%v", url)
 	log.Logger.Infof("resp:%v", tool.ToJson(resp))
