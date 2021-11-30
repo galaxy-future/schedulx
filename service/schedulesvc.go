@@ -130,7 +130,7 @@ func (s *ScheduleSvc) expandAction(ctx context.Context, svcReq *ServiceExpandSvc
 	}
 	instrSvcReq := &InstrSvcReq{
 		ServiceName:    schedTmpl.ServiceName,
-		ScheduleTaskId: schedTaskId, // 用于在执行 instr 中，记录在 bridgx 和 nodeact 中生成的 task_id
+		ScheduleTaskId: schedTaskId,
 		BridgXSvcReq: &BridgXSvcReq{
 			Count:       svcReq.Count,
 			ClusterName: schedTmpl.BridgxClusname,
@@ -204,7 +204,7 @@ func (s *ScheduleSvc) shrinkAction(ctx context.Context, svcReq *ServiceShrinkSvc
 	// 依次执行指令集
 	instrSvcReq := &InstrSvcReq{
 		ServiceName:    schedReverseTmpl.ServiceName,
-		ScheduleTaskId: schedTaskId, // 用于在执行 instr 中，记录在 bridgx 和 nodeact 中生成的 task_id
+		ScheduleTaskId: schedTaskId,
 		BridgXSvcReq: &BridgXSvcReq{
 			TaskId:      relationTaskid.BridgxTaskId,
 			ClusterName: schedReverseTmpl.BridgxClusname,

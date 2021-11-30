@@ -1,7 +1,10 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
+
+	"gorm.io/gorm"
 
 	"github.com/galaxy-future/schedulx/api/types"
 	"github.com/galaxy-future/schedulx/service"
@@ -32,8 +35,12 @@ func (h *Task) Info(ctx *gin.Context) {
 	}
 	svc := service.GetTaskSvcInst()
 	svcResp, err := svc.Info(ctx, svcReq)
-	if err != nil {
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		MkResponse(ctx, http.StatusOK, "record not found", nil)
 		return
 	}
 	data := &TaskInfoResponse{

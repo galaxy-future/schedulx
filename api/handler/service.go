@@ -92,8 +92,6 @@ func (h *Service) Shrink(ctx *gin.Context) {
 	}
 	if httpReq.ExecType == "" {
 		httpReq.ExecType = constant.TaskExecTypeManual
-		//MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
-		//return
 	}
 	scheduleSvc := service.GetScheduleSvcInst()
 	tmplSvcReq := &service.ScheduleSvcReq{
