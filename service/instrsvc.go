@@ -106,16 +106,18 @@ func (s *InstrSvc) ExecAct(ctx context.Context, args interface{}, act types.Acti
 		svcResp, err = s.nodeActInitSvcAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.NodeActSvcReq.Auth, svcReq.Instruction)
 	case s.MountSLB:
 		// 逻辑判断账号配置
-		if strings.Trim(config.GlobalConfig.AliYunAccount.Region, "") == "" || config.GlobalConfig.AliYunAccount.Region == "" {
+		if ok := s.isAliYunConf(config.GlobalConfig.AliYunAccount); ok {
+			svcResp, err = s.nodeActMountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.Instruction)
+		} else {
 			err = errors.New("aliyun region or account not empty")
 		}
-		svcResp, err = s.nodeActMountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.Instruction)
 	case s.UmountSLB:
 		// 逻辑判断账号配置
-		if strings.Trim(config.GlobalConfig.AliYunAccount.Region, "") == "" || config.GlobalConfig.AliYunAccount.Region == "" {
+		if ok := s.isAliYunConf(config.GlobalConfig.AliYunAccount); ok {
+			svcResp, err = s.nodeActUmountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.TaskId, svcReq.NodeActSvcReq.UmountSlbSvcReq, svcReq.Instruction)
+		} else {
 			err = errors.New("aliyun region or account not empty")
 		}
-		svcResp, err = s.nodeActUmountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.TaskId, svcReq.NodeActSvcReq.UmountSlbSvcReq, svcReq.Instruction)
 	default:
 		err = errors.New("no act matched")
 	}
@@ -526,4 +528,11 @@ func (s *InstrSvc) CreateUMountSlbInstr(ctx context.Context, args *types.ParamsM
 		return 0, err
 	}
 	return obj.Id, nil
+}
+
+func (s *InstrSvc) isAliYunConf(account config.ALIYunAccount) bool {
+	if strings.Trim(account.Region, " ") == "" || strings.Trim(account.AccessKey, " ") == "" || strings.Trim(account.Secret, " ") == "" {
+		return false
+	}
+	return true
 }
