@@ -496,7 +496,7 @@ func (s *InstrSvc) CreateMountSlbInstr(ctx context.Context, args *types.ParamsMo
 	//创建 instruction
 	var err error
 	if ok := IsAlibabaCloudAccountValid(config.GlobalConfig.AlibabaCloudAccount); !ok {
-		err = errors.New("AlibabaCloudAccount Config is invalid")
+		err = errors.New("invalid AlibabaCloudAccount Config")
 		log.Logger.Error(err)
 		return 0, 0, err
 	}
