@@ -26,7 +26,7 @@ func (t *Task) InstanceList(ctx *gin.Context) {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, "task_id empty")
 		return
 	}
-	total, instances, _ := service.GetTaskSvcInst().InstanceList(ctx, req.PageNum, req.PageSize, req.TaskId, types.InstanceStatus(req.InstanceStatus))
+	total, instances, err := service.GetTaskSvcInst().InstanceList(ctx, req.PageNum, req.PageSize, req.TaskId, types.InstanceStatus(req.InstanceStatus))
 
 	ret := struct {
 		Pager        types.Pager          `json:"pager"`
@@ -40,6 +40,10 @@ func (t *Task) InstanceList(ctx *gin.Context) {
 		},
 		InstanceList: instances,
 		TaskId:       req.TaskId,
+	}
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), ret)
+		return
 	}
 	MkResponse(ctx, http.StatusOK, errOK, ret)
 	return
