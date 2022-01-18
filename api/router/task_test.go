@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+
 func TestTask_Instancelist(t *testing.T) {
 	type args struct {
 		Method string

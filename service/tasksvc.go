@@ -177,6 +177,7 @@ func (s *TaskService) InstanceList(ctx context.Context, page, pageSize int, task
 	if pageSize == 0 || pageSize > 500 {
 		pageSize = 500
 	}
+
 	list, count, err := repository.GetInstanceRepoIns().InstsQueryByPage(ctx, taskId, taskStatus, pageSize, page, fields)
 	if err != nil {
 		log.Logger.Errorf("error:%v", err)

@@ -119,6 +119,7 @@ func (c *BridgXClient) ClusterExpand(ctx context.Context, cliReq *ClusterExpandR
 	}
 	url := c.genUrl(clusterExpandUrl)
 	authToken := cast.ToString(ctx.Value(config.GlobalConfig.JwtToken.BindContextKeyName))
+
 	ret, err := c.httpClient.R().SetBody(params).SetResult(resp).SetError(resp).SetAuthToken(authToken).Post(url)
 	log.Logger.Infof("ret:%s", ret.Body())
 	log.Logger.Infof("url:%+v", url)

@@ -1,5 +1,14 @@
 # **SchedulX**
 
+
+语言(language)
+----
+
+[English](https://github.com/galaxy-future/schedulx/blob/master/docs/EN-README.md)
+
+简介
+--------
+
 SchedulX 是基于开源 BridgX 项目的云原生服务编排和部署解决方案，目标是让开发者在 BridgX 获取的计算资源上进行服务编排和部署。
 
 它具有如下关键特性:
@@ -33,13 +42,10 @@ SchedulX依赖BridgX和BridgX_FE，请根据[安装指南](hhttps://github.com/g
   - 后端部署,在SchedulX目录下运行
     > `make docker-run-mac`
 
-  - 系统运行，在浏览器中输入 http://127.0.0.1 可以看到管理控制台界面,初始用户名root和密码为123456。
-
 * (3)Linux安装部署
   - 1）针对使用者
     - 后端部署,在SchedulX目录下运行,
       > `make docker-run-linux`
-    - 系统运行，浏览器输入 `http://127.0.0.1 `可以看到管理控制台界面,初始用户名 `root`和密码为`123456`。
 
   - 2）针对开发者
     - 后端部署
@@ -51,17 +57,15 @@ SchedulX依赖BridgX和BridgX_FE，请根据[安装指南](hhttps://github.com/g
              > `docker-compose up -d schedulx`   //启动schedulx服务 <br>
              > `docker-compose down`     //停止SchedulX服务
 
-      - 系统运行，浏览器输入 `http://127.0.0.1` 可以看到管理控制台界面,初始用户名 root 和密码为123456。
+4、前端界面化操作
 
-快速上手
-------------
-通过[快速上手指南](https://github.com/galaxy-future/SchedulX/blob/master/docs/getting-started.md)，可以掌握基本的服务扩缩容流程。
+如果需要使用web前端进行操作，请下载安装[ComandX](https://github.com/galaxy-future/comandx/blob/main/README.md)
 
 行为准则
 ------
-[贡献者公约](https://github.com/galaxy-future/SchedulX/blob/master/CODE_OF_CONDUCT.md)
+[贡献者公约](https://github.com/galaxy-future/schedulx/blob/master/CODE_OF_CONDUCT.md)
 
 授权
 -----
 
-SchedulX 使用[Apache License 2.0](https://github.com/galaxy-future/SchedulX/blob/master/README.md)授权协议进行授权
+SchedulX 使用[Apache License 2.0](https://github.com/galaxy-future/schedulx/blob/master/README.md)授权协议进行授权

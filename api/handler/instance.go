@@ -5,7 +5,6 @@ import (
 
 	"github.com/galaxy-future/schedulx/repository"
 	"github.com/spf13/cast"
-
 	"github.com/galaxy-future/schedulx/api/types"
 	"github.com/galaxy-future/schedulx/service"
 	"github.com/gin-gonic/gin"
@@ -57,6 +56,7 @@ func (t *Task) InstanceList(ctx *gin.Context) {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, "task_id empty")
 		return
 	}
+
 	taskId, err := repository.GetTaskRepoInst().GetBridgXTaskId(ctx, cast.ToInt64(req.TaskId))
 	if err != nil {
 		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
