@@ -3,16 +3,46 @@ package handler
 import (
 	"net/http"
 
+	"github.com/galaxy-future/schedulx/repository"
+	"github.com/spf13/cast"
 	"github.com/galaxy-future/schedulx/api/types"
 	"github.com/galaxy-future/schedulx/service"
 	"github.com/gin-gonic/gin"
 )
+
+type Instance struct{}
 
 type InstanceReq struct {
 	PageNum        int    `form:"page_num" json:"page_num"`
 	PageSize       int    `form:"page_size" json:"page_size"`
 	TaskId         int    `form:"task_id" json:"task_id"`
 	InstanceStatus string `form:"instance_status" json:"instance_status"`
+}
+
+type InstanceCountReq struct {
+	ServiceClusterId   int64  `json:"service_cluster_id" form:"service_cluster_id"`
+	ServiceName        string `json:"service_name" form:"service_name"`
+	ServiceClusterName string `json:"service_cluster_name" form:"service_cluster_name"`
+}
+
+func (i *Instance) Count(ctx *gin.Context) {
+	req := &InstanceCountReq{}
+	err := ctx.BindQuery(req)
+	if err != nil {
+		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
+		return
+	}
+	if req.ServiceName == "" && req.ServiceClusterId == 0 {
+		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
+		return
+	}
+	resp, err := service.GetInstanceService().InstanceCountByCluster(ctx, req.ServiceName, req.ServiceClusterName, req.ServiceClusterId)
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	MkResponse(ctx, http.StatusOK, errOK, resp)
+	return
 }
 
 func (t *Task) InstanceList(ctx *gin.Context) {
@@ -26,7 +56,13 @@ func (t *Task) InstanceList(ctx *gin.Context) {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, "task_id empty")
 		return
 	}
-	total, instances, err := service.GetTaskSvcInst().InstanceList(ctx, req.PageNum, req.PageSize, req.TaskId, types.InstanceStatus(req.InstanceStatus))
+
+	taskId, err := repository.GetTaskRepoInst().GetBridgXTaskId(ctx, cast.ToInt64(req.TaskId))
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	total, instances, err := service.GetTaskSvcInst().InstanceList(ctx, req.PageNum, req.PageSize, taskId, types.InstanceStatus(req.InstanceStatus))
 	if err != nil {
 		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
 		return

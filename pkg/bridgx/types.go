@@ -47,7 +47,16 @@ type Account struct {
 	UserName string `json:"user_name"`
 }
 
+type ChargeConfig struct {
+	ChargeType string `json:"charge_type"`
+}
+
 type ClusterInfo struct {
-	Pwd      string `json:"password"`
-	UserName string `json:"username"`
+	InstanceCore   int           `json:"instance_core"`
+	InstanceMemory int           `json:"instance_memory"`
+	InstanceType   string        `json:"instance_type"`
+	Pwd            string        `json:"password"`
+	UserName       string        `json:"username"`
+	Provider       string        `json:"provider"`
+	ChargeConfig   *ChargeConfig `json:"charge_config"`
 }

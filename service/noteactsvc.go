@@ -40,9 +40,10 @@ func GetNodeActSvcInst() *NodeActSvc {
 }
 
 type NodeActSvcReq struct {
-	InstGroup *nodeact.InstanceGroup
-	TaskId    int64
-	Auth      *types.InstanceAuth
+	InstGroup        *nodeact.InstanceGroup
+	TaskId           int64
+	ServiceClusterId int64
+	Auth             *types.InstanceAuth
 	//HarborRegisterUrl string // harbor 镜像服务地址，用于加入 docker 的配置允许 http 链接
 	InitServicSvcReq *InitServicSvcReq
 	//Params          *nodeact.ParamsServiceEnv
@@ -81,13 +82,13 @@ func (s *NodeActSvc) ExecAct(ctx context.Context, args interface{}, act types.Ac
 	}()
 	switch act {
 	case s.InitBase:
-		svcResp, err = s.InitBaseAction(ctx, svcReq.InstGroup, svcReq.Auth)
+		svcResp, err = s.InitBaseAction(ctx, svcReq.InstGroup, svcReq.Auth, svcReq.ServiceClusterId)
 	case s.InitService:
-		svcResp, err = s.InitServiceAction(ctx, svcReq.InstGroup, svcReq.Auth, svcReq.InitServicSvcReq)
+		svcResp, err = s.InitServiceAction(ctx, svcReq.InstGroup, svcReq.Auth, svcReq.InitServicSvcReq, svcReq.ServiceClusterId)
 	case s.MountSlb:
 		svcResp, err = s.MountInstAction(ctx, svcReq.InstGroup, svcReq.SlbMountInfo)
 	case s.UmountSlb:
-		svcResp, err = s.UmountInstAction(ctx, svcReq.TaskId, svcReq.UmountSlbSvcReq)
+		svcResp, err = s.UmountInstAction(ctx, svcReq.TaskId, svcReq.ServiceClusterId, svcReq.UmountSlbSvcReq)
 	case s.PollQueryInitBase:
 		svcResp, err = s.PollQueryBaseNode(ctx, svcReq.TaskId)
 	case s.PollQueryInitService:
@@ -98,14 +99,15 @@ func (s *NodeActSvc) ExecAct(ctx context.Context, args interface{}, act types.Ac
 	return svcResp, err
 }
 
-func (s *NodeActSvc) InitBaseAction(ctx context.Context, instGroup *nodeact.InstanceGroup, auth *types.InstanceAuth) (*NodeActSvcResp, error) {
+func (s *NodeActSvc) InitBaseAction(ctx context.Context, instGroup *nodeact.InstanceGroup, auth *types.InstanceAuth, serviceClusterId int64) (*NodeActSvcResp, error) {
 	var err error
 	resp := &NodeActSvcResp{}
 
 	baseEnvReq := &BaseEnvInitAsyncSvcReq{
-		TaskId:       instGroup.TaskId,
-		InstanceList: instGroup.InstanceList,
-		Auth:         auth,
+		ServiceClusterId: serviceClusterId,
+		TaskId:           instGroup.TaskId,
+		InstanceList:     instGroup.InstanceList,
+		Auth:             auth,
 	}
 	err = GetEnvOpsSvcInst().BaseEnvInitAsync(ctx, baseEnvReq)
 	if err != nil {
@@ -114,16 +116,17 @@ func (s *NodeActSvc) InitBaseAction(ctx context.Context, instGroup *nodeact.Inst
 	return resp, nil
 }
 
-func (s *NodeActSvc) InitServiceAction(ctx context.Context, instGroup *nodeact.InstanceGroup, auth *types.InstanceAuth, svcReq *InitServicSvcReq) (*NodeActSvcResp, error) {
+func (s *NodeActSvc) InitServiceAction(ctx context.Context, instGroup *nodeact.InstanceGroup, auth *types.InstanceAuth, svcReq *InitServicSvcReq, serviceClusterId int64) (*NodeActSvcResp, error) {
 	var err error
 	resp := &NodeActSvcResp{}
 
 	svcEnvReq := &SvcEnvInitAsyncSvcReq{
-		TaskId:       instGroup.TaskId,
-		InstanceList: instGroup.InstanceList,
-		Auth:         auth,
-		Params:       svcReq.Params,
-		Cmd:          svcReq.Cmd,
+		TaskId:           instGroup.TaskId,
+		ServiceClusterId: serviceClusterId,
+		InstanceList:     instGroup.InstanceList,
+		Auth:             auth,
+		Params:           svcReq.Params,
+		Cmd:              svcReq.Cmd,
 	}
 	err = GetEnvOpsSvcInst().ServiceEnvInitAsync(ctx, svcEnvReq)
 	return resp, err
@@ -143,15 +146,16 @@ func (s *NodeActSvc) MountInstAction(ctx context.Context, instGroup *nodeact.Ins
 	return exposeResp, err
 }
 
-func (s *NodeActSvc) UmountInstAction(ctx context.Context, taskId int64, umountSlbSvcReq *UmountSlbSvcReq) (*ExposeUmountSvcResp, error) {
+func (s *NodeActSvc) UmountInstAction(ctx context.Context, taskId, serviceClusterId int64, umountSlbSvcReq *UmountSlbSvcReq) (*ExposeUmountSvcResp, error) {
 	var err error
 	resp := &ExposeUmountSvcResp{}
 
 	unmountReq := &ExposeUmountSvcReq{
-		TaskId:     taskId,
-		Count:      umountSlbSvcReq.UmountInstCnt,
-		MountType:  umountSlbSvcReq.SlbInfo.MountType,
-		MountValue: umountSlbSvcReq.SlbInfo.MountValue,
+		ServiceClusterId: serviceClusterId,
+		TaskId:           taskId,
+		Count:            umountSlbSvcReq.UmountInstCnt,
+		MountType:        umountSlbSvcReq.SlbInfo.MountType,
+		MountValue:       umountSlbSvcReq.SlbInfo.MountValue,
 	}
 	resp, err = GetMountSvcInst().Umount(ctx, unmountReq)
 	return resp, err

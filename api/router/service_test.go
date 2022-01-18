@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	authToken = "xxxx"
+	authToken = ""
 )
 
 func TestMain(m *testing.M) {

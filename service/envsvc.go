@@ -34,17 +34,19 @@ func GetEnvOpsSvcInst() *EnvService {
 }
 
 type BaseEnvInitAsyncSvcReq struct {
-	TaskId       int64                 `json:"task_id"`
-	InstanceList []*types.InstanceInfo `json:"instance_list"`
-	Auth         *types.InstanceAuth   `json:"auth"`
+	ServiceClusterId int64                 `json:"service_cluster_id"`
+	TaskId           int64                 `json:"task_id"`
+	InstanceList     []*types.InstanceInfo `json:"instance_list"`
+	Auth             *types.InstanceAuth   `json:"auth"`
 }
 
 type SvcEnvInitAsyncSvcReq struct {
-	TaskId       int64                   `json:"task_id"`
-	InstanceList []*types.InstanceInfo   `json:"instance_list"`
-	Auth         *types.InstanceAuth     `json:"auth"`
-	Params       *types.ParamsServiceEnv `json:"params"`
-	Cmd          string                  `json:"string"`
+	ServiceClusterId int64                   `json:"service_cluster_id"`
+	TaskId           int64                   `json:"task_id"`
+	InstanceList     []*types.InstanceInfo   `json:"instance_list"`
+	Auth             *types.InstanceAuth     `json:"auth"`
+	Params           *types.ParamsServiceEnv `json:"params"`
+	Cmd              string                  `json:"string"`
 }
 
 func (s *EnvService) entryLog(ctx context.Context, method string, req interface{}) {
@@ -62,7 +64,7 @@ func (s *EnvService) BaseEnvInitAsync(ctx context.Context, svcReq *BaseEnvInitAs
 		s.exitLog(ctx, "BaseEnvInitAsync", svcReq, nil, err)
 	}()
 	// 机器信息入库
-	if err = s.NodeUpdateStore(ctx, svcReq.InstanceList, svcReq.TaskId); err != nil {
+	if err = s.NodeUpdateStore(ctx, svcReq.InstanceList, svcReq.TaskId, svcReq.ServiceClusterId); err != nil {
 		return err
 	}
 	//异步初始化
@@ -79,11 +81,11 @@ func (s *EnvService) BaseEnvInitAsync(ctx context.Context, svcReq *BaseEnvInitAs
 	return nil
 }
 
-func (s *EnvService) NodeUpdateStore(ctx context.Context, instanceList []*types.InstanceInfo, taskId int64) error {
+func (s *EnvService) NodeUpdateStore(ctx context.Context, instanceList []*types.InstanceInfo, taskId, serviceClusterId int64) error {
 	var err error
 	repo := repository.GetInstanceRepoIns()
 	// todo UpInsertTask()
-	if err = repo.UpInsertInstanceBatch(ctx, instanceList, taskId); err != nil {
+	if err = repo.UpInsertInstanceBatch(ctx, instanceList, taskId, serviceClusterId); err != nil {
 		return err
 	}
 	return nil
@@ -126,7 +128,7 @@ func (s *EnvService) ServiceEnvInitAsync(ctx context.Context, svcReq *SvcEnvInit
 		s.exitLog(ctx, "ServiceEnvInitAsync", svcReq, nil, err)
 	}()
 	// 机器信息入库
-	if err = s.NodeUpdateStore(ctx, svcReq.InstanceList, svcReq.TaskId); err != nil {
+	if err = s.NodeUpdateStore(ctx, svcReq.InstanceList, svcReq.TaskId, svcReq.ServiceClusterId); err != nil {
 		return err
 	}
 	// 异步

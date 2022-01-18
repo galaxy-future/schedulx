@@ -7,16 +7,14 @@ import (
 	"strings"
 	"sync"
 
-	"gorm.io/gorm"
-
+	"github.com/galaxy-future/schedulx/api/types"
+	"github.com/galaxy-future/schedulx/pkg/tool"
+	"github.com/galaxy-future/schedulx/register/config/client"
 	"github.com/galaxy-future/schedulx/register/config/log"
 	"github.com/galaxy-future/schedulx/register/constant"
 	"github.com/galaxy-future/schedulx/repository/model/db"
-
-	"github.com/galaxy-future/schedulx/api/types"
 	jsoniter "github.com/json-iterator/go"
-
-	"github.com/galaxy-future/schedulx/pkg/tool"
+	"gorm.io/gorm"
 )
 
 type ScheduleTemplateRepo struct {
@@ -25,15 +23,20 @@ type ScheduleTemplateRepo struct {
 type TemplateTaskLogic struct {
 	TaskId         int64  `json:"task_id"`
 	TmplExpandName string `json:"tmpl_expand_name"`
+	BridgxCluster  string `json:"bridgx_cluster"`
 	ScheduleType   string `json:"schedule_type"`
 	TaskInstCnt    int64  `json:"task_inst_cnt"`
 	TaskExecType   string `json:"task_exec_type"`
 	TaskExecOpr    string `json:"task_exec_opr"`
 	BeginAt        string `json:"begin_at"`
 	TimeCost       string `json:"time_cost"`
+	SuccessCount   int64  `json:"success_count"`
+	FailCount      int64  `json:"fail_count"`
+	TotalCount     int64  `json:"total_count"`
 	TaskStatus     string `json:"task_status"`
 	TaskStatusDesc string `json:"task_status_desc"`
 	TaskStepDesc   string `json:"task_step_desc"`
+	Msg            string `json:"msg"`
 }
 type ExpandTemplateList struct {
 	TmplExpandId    int64  `json:"tmpl_expand_id"`
@@ -73,6 +76,19 @@ func (r *ScheduleTemplateRepo) GetSchedTmplBySvcClusterId(scId int64, schedType 
 		"schedule_type":      schedType,
 	}
 	if err = db.QueryFirst(where, obj); err != nil {
+		log.Logger.Error(err)
+		return nil, err
+	}
+	return obj, nil
+}
+
+func (r *ScheduleTemplateRepo) GetAllTmplsBySvcClusterId(scIds []int64) ([]db.ScheduleTemplate, error) {
+	var err error
+	var obj []db.ScheduleTemplate
+	where := map[string]interface{}{
+		"service_cluster_id": scIds,
+	}
+	if err = db.QueryAll(where, &obj, "", nil); err != nil {
 		log.Logger.Error(err)
 		return nil, err
 	}
@@ -145,7 +161,7 @@ func (r *ScheduleTemplateRepo) GetScheduleTempList(ctx context.Context, page, pa
 	taskWhere := map[string]interface{}{
 		"sched_tmpl_id": []int64{scheduleTempModel.Id, scheduleTempModel.ReverseSchedTmplId},
 	}
-	fields := []string{"id", "task_step", "operator", "sched_tmpl_id", "task_status", "inst_cnt", "exec_type", "begin_at", "finish_at"}
+	fields := []string{"id", "task_step", "operator", "sched_tmpl_id", "task_status", "inst_cnt", "exec_type", "msg", "begin_at", "finish_at"}
 	total, err := db.Query(taskWhere, page, pageSize, &taskModel, "id desc", fields, true)
 	if err != nil {
 		log.Logger.Errorf("table [task] queryAll error:%v", err)
@@ -159,18 +175,31 @@ func (r *ScheduleTemplateRepo) GetScheduleTempList(ctx context.Context, page, pa
 			costTime = item.FinishAt.Sub(item.BeginAt).Seconds()
 			min, sec = tool.SecondsToInt64(costTime)
 		}
+		var successCount int64
+		var failCount int64
+		if item.TaskStatus == "SUCC" {
+			successCount = item.InstCnt
+		}
+		if item.TaskStatus == "FAIL" {
+			failCount = item.InstCnt
+		}
 		list[index] = TemplateTaskLogic{
 			TaskId:         item.Id,
 			TmplExpandName: scheduleTempModel.TmplName,
+			BridgxCluster:  scheduleTempModel.BridgxClusname,
 			ScheduleType:   scheduleTempMap[item.SchedTmplId],
 			TaskExecType:   item.ExecType,
 			TaskStatus:     item.TaskStatus,
 			TaskStatusDesc: types.TaskStatusDesc(item.TaskStatus),
 			TaskStepDesc:   types.TaskStepDesc(item.TaskStep),
 			TaskInstCnt:    item.InstCnt,
+			TotalCount:     item.InstCnt,
+			SuccessCount:   successCount,
+			FailCount:      failCount,
 			TaskExecOpr:    item.Operator,
 			BeginAt:        item.BeginAt.Format("2006-01-02 15:04:05"),
 			TimeCost:       fmt.Sprintf("%d 分钟 %d 秒", min, sec),
+			Msg:            item.Msg,
 		}
 	}
 	return list, total, nil
@@ -264,11 +293,9 @@ func (r *ScheduleTemplateRepo) GetExpandList(ctx context.Context, serviceName st
 	return list, count, nil
 }
 
-// 更新数据表
+// Delete 删除扩缩容模板以及关联集群
 func (schtr *ScheduleTemplateRepo) Delete(ctx context.Context, tmplIds []int64) (int64, error) {
-	templateModel := &db.ScheduleTemplate{}
-	// 可以重复删除，不用事物加快效率
-	templateListModel := []db.ScheduleTemplate{}
+	var templateListModel []db.ScheduleTemplate
 	err := db.Gets(tmplIds, &templateListModel)
 	if err != nil && strings.Contains(err.Error(), "not record") {
 		log.Logger.Errorf("error:%v", err)
@@ -277,7 +304,21 @@ func (schtr *ScheduleTemplateRepo) Delete(ctx context.Context, tmplIds []int64) 
 	for _, item := range templateListModel {
 		tmplIds = append(tmplIds, item.ReverseSchedTmplId)
 	}
-	ret, err := db.Updates(templateModel, map[string]interface{}{"id": tmplIds}, map[string]interface{}{"is_deleted": 1}, nil)
+
+	clusterIds := make([]int64, 0, len(tmplIds))
+	for _, template := range templateListModel {
+		clusterIds = append(clusterIds, template.ServiceClusterId)
+	}
+
+	var ret int64
+	err = client.WriteDBCli.Transaction(func(tx *gorm.DB) error {
+		r := tx.Delete(&db.ScheduleTemplate{}, tmplIds)
+		ret = r.RowsAffected
+		if r.Error != nil {
+			return r.Error
+		}
+		return tx.Model(db.ServiceCluster{}).Where("id IN (?)", clusterIds).UpdateColumn("bridgx_cluster", "").Error
+	})
 
 	return ret, err
 }

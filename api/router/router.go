@@ -24,7 +24,7 @@ func Init() *gin.Engine {
 		router = gin.Default()
 	}
 	router.GET("/", func(context *gin.Context) {
-		context.String(http.StatusOK, "NodeAct")
+		context.String(http.StatusOK, "SchedulX")
 	})
 
 	v1Api := router.Group("/api/v1/")
@@ -37,10 +37,18 @@ func Init() *gin.Engine {
 			servicePath.GET("shrink", h.Shrink)
 			servicePath.GET("detail", h.Detail)
 			servicePath.GET("list", h.List)
+			servicePath.GET("scheduling", h.Scheduling)
+			servicePath.GET("cluster_list", h.ClusterList)
 			servicePath.GET("breathrecord", h.BreathRecord)
 			servicePath.POST("update", h.Update)
 			servicePath.POST("create", h.Create)
 		}
+		instancePath := v1Api.Group("schedulx/instance/")
+		{
+			h := &handler.Instance{}
+			instancePath.GET("count", h.Count)
+		}
+
 		tmplExpandPath := v1Api.Group("schedulx/template/expand/")
 		{
 			h := &handler.TmplExpand{}

@@ -145,7 +145,15 @@ func (s *TemplateSvc) createAction(ctx context.Context, svcReq *TmplExpandSvcReq
 		dbo.Commit()
 	}()
 	serviceCluster := &db.ServiceCluster{}
-	if err = db.Get(cast.ToInt64(svcReq.TmplInfo.ServiceClusterId), serviceCluster); err != nil {
+	serviceClusterId := cast.ToInt64(svcReq.TmplInfo.ServiceClusterId)
+	if err = db.Get(serviceClusterId, serviceCluster); err != nil {
+		log.Logger.Errorf("db tabel:%v error:%v", serviceCluster.TableName(), err)
+		return nil, err
+	}
+
+	if err = db.UpdatesByIds(serviceCluster, []int64{serviceClusterId}, map[string]interface{}{
+		"bridgx_cluster": svcReq.TmplInfo.BridgxClusname,
+	}, dbo); err != nil {
 		log.Logger.Errorf("db tabel:%v error:%v", serviceCluster.TableName(), err)
 		return nil, err
 	}
@@ -437,9 +445,19 @@ func (s *TemplateSvc) UpdateAction(ctx context.Context, svcReq *TmplUpdateSvcReq
 		dbo.Commit()
 	}()
 	serviceCluster := &db.ServiceCluster{}
-	if err = db.Get(cast.ToInt64(svcReq.TmplInfo.ServiceClusterId), serviceCluster); err != nil {
+	serviceClusterId := cast.ToInt64(svcReq.TmplInfo.ServiceClusterId)
+	if err = db.Get(serviceClusterId, serviceCluster); err != nil {
 		log.Logger.Error(err)
 		return nil, err
+	}
+	if serviceCluster.BridgxCluster != svcReq.TmplInfo.BridgxClusname {
+		if err = db.UpdatesByIds(serviceCluster, []int64{serviceClusterId}, map[string]interface{}{
+			"bridgx_cluster": svcReq.TmplInfo.BridgxClusname,
+		}, dbo); err != nil {
+			log.Logger.Errorf("db tabel:%v error:%v", serviceCluster.TableName(), err)
+			return nil, err
+		}
+
 	}
 
 	tmplRepo := repository.GetScheduleTemplateRepoInst()

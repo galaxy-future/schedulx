@@ -49,12 +49,13 @@ func GetInstrSvcInst() *InstrSvc {
 }
 
 type InstrSvcReq struct {
-	ServiceName    string
-	ScheduleTaskId int64
-	InstrId        int64
-	Instruction    *db.Instruction
-	BridgXSvcReq   *BridgXSvcReq
-	NodeActSvcReq  *NodeActSvcReq
+	ServiceName      string
+	ServiceClusterId int64
+	ScheduleTaskId   int64
+	InstrId          int64
+	Instruction      *db.Instruction
+	BridgXSvcReq     *BridgXSvcReq
+	NodeActSvcReq    *NodeActSvcReq
 }
 
 type InstrSvcResp struct {
@@ -95,18 +96,18 @@ func (s *InstrSvc) ExecAct(ctx context.Context, args interface{}, act types.Acti
 	case s.BridgXExpand:
 		svcResp, err = s.bridgXExpandAction(ctx, svcReq.ScheduleTaskId, svcReq.BridgXSvcReq.Count, svcReq.BridgXSvcReq.ClusterName)
 	case s.BridgXShrink:
-		svcResp, err = s.bridgXShrinkAction(ctx, svcReq.ScheduleTaskId, svcReq.BridgXSvcReq)
+		svcResp, err = s.bridgXShrinkAction(ctx, svcReq.ScheduleTaskId, svcReq.BridgXSvcReq, svcReq.ServiceClusterId)
 	case s.NodeActInitBase:
 		wt := 25 * time.Second
 		log.Logger.Infof("准备机器环境初始化...等待%v", wt)
 		time.Sleep(wt)
-		svcResp, err = s.nodeActInitBaseAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.NodeActSvcReq.Auth)
+		svcResp, err = s.nodeActInitBaseAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.NodeActSvcReq.Auth, svcReq.ServiceClusterId)
 	case s.NodeActInitSvc:
 		svcResp, err = s.nodeActInitSvcAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.NodeActSvcReq.Auth, svcReq.Instruction)
 	case s.MountSLB:
 		svcResp, err = s.nodeActMountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.Instruction)
 	case s.UmountSLB:
-		svcResp, err = s.nodeActUmountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.TaskId, svcReq.NodeActSvcReq.UmountSlbSvcReq, svcReq.Instruction)
+		svcResp, err = s.nodeActUmountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.TaskId, svcReq.NodeActSvcReq.UmountSlbSvcReq, svcReq.Instruction, svcReq.ServiceClusterId)
 	default:
 		err = errors.New("no act matched")
 	}
@@ -166,7 +167,7 @@ func (s *InstrSvc) bridgXExpandAction(ctx context.Context, schedTaskId, count in
 	return resp, err
 }
 
-func (s *InstrSvc) bridgXShrinkAction(ctx context.Context, schedTaskId int64, bridgXSvcReq *BridgXSvcReq) (*InstrSvcResp, error) {
+func (s *InstrSvc) bridgXShrinkAction(ctx context.Context, schedTaskId int64, bridgXSvcReq *BridgXSvcReq, serviceClusterId int64) (*InstrSvcResp, error) {
 	var err error
 	taskRepo := repository.GetTaskRepoInst()
 	_ = taskRepo.UpdateTaskStep(ctx, schedTaskId, types.TaskStepBridgxShrinkInit, "")
@@ -179,7 +180,8 @@ func (s *InstrSvc) bridgXShrinkAction(ctx context.Context, schedTaskId int64, br
 		// 主动获取 instances
 		log.Logger.Infof("fetch InstanceList")
 		instRepo := repository.GetInstanceRepoIns()
-		insts, err := instRepo.InstsQueryByTaskId(ctx, bridgXSvcReq.TaskId, "", nil)
+		insts, err := instRepo.NotDeletedInstsWithLimit(ctx, serviceClusterId, int(bridgXSvcReq.Count))
+		//insts, err := instRepo.InstsQueryByPage(ctx, bridgXSvcReq.TaskId, "", nil)
 		if err != nil {
 			log.Logger.Error(err)
 			return nil, err
@@ -208,9 +210,8 @@ func (s *InstrSvc) bridgXShrinkAction(ctx context.Context, schedTaskId int64, br
 	var bridgXSvcResp *BridgXSvcResp
 	bridgXSvcResp = svcResp.(*BridgXSvcResp)
 	taskId := bridgXSvcResp.TaskId
-	bridgXSvcReq = &BridgXSvcReq{
-		TaskId: taskId,
-	}
+	bridgXSvcReq.TaskId = taskId
+
 	svcResp, err = bridgXSvc.ExecAct(ctx, bridgXSvcReq, bridgXSvc.PoolQueryShrink) // 循环等待和查询,有超时标准和
 	if err != nil {
 		return nil, err
@@ -221,7 +222,7 @@ func (s *InstrSvc) bridgXShrinkAction(ctx context.Context, schedTaskId int64, br
 	return resp, nil
 }
 
-func (s *InstrSvc) nodeActInitBaseAction(ctx context.Context, schedTaskId int64, instGroup *nodeact.InstanceGroup, auth *types.InstanceAuth) (*InstrSvcResp, error) {
+func (s *InstrSvc) nodeActInitBaseAction(ctx context.Context, schedTaskId int64, instGroup *nodeact.InstanceGroup, auth *types.InstanceAuth, serviceClusterId int64) (*InstrSvcResp, error) {
 	var err error
 	taskRepo := repository.GetTaskRepoInst()
 	_ = taskRepo.UpdateTaskStep(ctx, schedTaskId, types.TaskStepBaseEnvInit, "")
@@ -232,8 +233,9 @@ func (s *InstrSvc) nodeActInitBaseAction(ctx context.Context, schedTaskId int64,
 		}
 	}()
 	nodeXSvcReq := &NodeActSvcReq{
-		InstGroup: instGroup,
-		Auth:      auth,
+		InstGroup:        instGroup,
+		Auth:             auth,
+		ServiceClusterId: serviceClusterId,
 	}
 	nodeActSvc = GetNodeActSvcInst()
 	// 执行初始化
@@ -325,7 +327,7 @@ func (s *InstrSvc) nodeActMountInstAction(ctx context.Context, schedTaskId int64
 	return resp, nil
 }
 
-func (s *InstrSvc) nodeActUmountInstAction(ctx context.Context, schedTaskId, nodeActTaskId int64, umountSlbSvcReq *UmountSlbSvcReq, instr *db.Instruction) (*InstrSvcResp, error) {
+func (s *InstrSvc) nodeActUmountInstAction(ctx context.Context, schedTaskId, nodeActTaskId int64, umountSlbSvcReq *UmountSlbSvcReq, instr *db.Instruction, serviceClusterId int64) (*InstrSvcResp, error) {
 	var err error
 	taskRepo := repository.GetTaskRepoInst()
 	_ = taskRepo.UpdateTaskStep(ctx, schedTaskId, types.TaskStepUmountInit, "")
@@ -348,8 +350,9 @@ func (s *InstrSvc) nodeActUmountInstAction(ctx context.Context, schedTaskId, nod
 		},
 	}
 	nodeXSvcReq := &NodeActSvcReq{
-		TaskId:          nodeActTaskId,   // 原扩容任务 id
-		UmountSlbSvcReq: umountSlbSvcReq, //  卸载所需的信息
+		ServiceClusterId: serviceClusterId,
+		TaskId:           nodeActTaskId,   // 原扩容任务 id
+		UmountSlbSvcReq:  umountSlbSvcReq, //  卸载所需的信息
 	}
 	svc := GetNodeActSvcInst()
 	svcResp, err := svc.ExecAct(ctx, nodeXSvcReq, svc.UmountSlb)

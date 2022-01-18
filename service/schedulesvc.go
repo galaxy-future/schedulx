@@ -13,7 +13,6 @@ import (
 	"github.com/galaxy-future/schedulx/register/config/log"
 	"github.com/galaxy-future/schedulx/register/constant"
 	"github.com/galaxy-future/schedulx/repository"
-	"github.com/galaxy-future/schedulx/repository/model/db"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -129,8 +128,9 @@ func (s *ScheduleSvc) expandAction(ctx context.Context, svcReq *ServiceExpandSvc
 		return nil, err
 	}
 	instrSvcReq := &InstrSvcReq{
-		ServiceName:    schedTmpl.ServiceName,
-		ScheduleTaskId: schedTaskId,
+		ServiceName:      schedTmpl.ServiceName,
+		ServiceClusterId: schedTmpl.ServiceClusterId,
+		ScheduleTaskId:   schedTaskId,
 		BridgXSvcReq: &BridgXSvcReq{
 			Count:       svcReq.Count,
 			ClusterName: schedTmpl.BridgxClusname,
@@ -189,7 +189,7 @@ func (s *ScheduleSvc) shrinkAction(ctx context.Context, svcReq *ServiceShrinkSvc
 		err = errors.New("schedule_template.instr_group Unmarshal exception")
 		return nil, err
 	}
-	// 获取扩容模板对应的最后一个成功的任务 task_id
+	/*获取扩容模板对应的最后一个成功的任务 task_id
 	task, err := taskRepo.GetLastExpandSuccTask(ctx, schedReverseTmpl.ReverseSchedTmplId)
 	if err != nil {
 		log.Logger.Error(err.Error())
@@ -200,17 +200,19 @@ func (s *ScheduleSvc) shrinkAction(ctx context.Context, svcReq *ServiceShrinkSvc
 	if err != nil {
 		log.Logger.Error("relationTaskid unmarshal error | ", task.RelationTaskId, err.Error())
 		return nil, err
-	}
+	}*/
 	// 依次执行指令集
 	instrSvcReq := &InstrSvcReq{
-		ServiceName:    schedReverseTmpl.ServiceName,
-		ScheduleTaskId: schedTaskId,
+		ServiceName:      schedReverseTmpl.ServiceName,
+		ServiceClusterId: schedReverseTmpl.ServiceClusterId,
+		ScheduleTaskId:   schedTaskId,
 		BridgXSvcReq: &BridgXSvcReq{
-			TaskId:      relationTaskid.BridgxTaskId,
+			//TaskId:      relationTaskid.BridgxTaskId,
 			ClusterName: schedReverseTmpl.BridgxClusname,
+			Count:       svcReq.Count,
 		},
 		NodeActSvcReq: &NodeActSvcReq{
-			TaskId: relationTaskid.NodeactTaskId,
+			//TaskId: relationTaskid.NodeactTaskId,
 			UmountSlbSvcReq: &UmountSlbSvcReq{
 				UmountInstCnt: svcReq.Count,
 			},
@@ -262,10 +264,10 @@ func (s *ScheduleSvc) doInstr(ctx context.Context, instrSvcReq *InstrSvcReq) err
 	case instrSvc.BridgXExpand: // 给下一轮赋值参数
 		instrSvcReq.NodeActSvcReq.InstGroup = instrSvcResp.BridgXSvcResp.InstGroup
 		instrSvcReq.NodeActSvcReq.Auth = instrSvcResp.BridgXSvcResp.Auth
-		err = taskRepo.UpdateTaskRelationTaskId(ctx, instrSvcReq.ScheduleTaskId, "bridgx_task_id", instrSvcResp.BridgXSvcResp.TaskId)
+		err = taskRepo.UpdateTaskRelationTaskId(ctx, instrSvcReq.ScheduleTaskId, types.BridgXTaskId, instrSvcResp.BridgXSvcResp.TaskId)
 	case instrSvc.NodeActInitBase:
 		instrSvcReq.NodeActSvcReq.InstGroup = instrSvcResp.NodeActSvcResp.InstGroup
-		err = taskRepo.UpdateTaskRelationTaskId(ctx, instrSvcReq.ScheduleTaskId, "nodeact_task_id", instrSvcResp.NodeActSvcResp.InstGroup.TaskId)
+		err = taskRepo.UpdateTaskRelationTaskId(ctx, instrSvcReq.ScheduleTaskId, types.NodeactTaskId, instrSvcResp.NodeActSvcResp.InstGroup.TaskId)
 	case instrSvc.NodeActInitSvc:
 		instrSvcReq.NodeActSvcReq.InstGroup = instrSvcResp.NodeActSvcResp.InstGroup
 	case instrSvc.MountSLB:

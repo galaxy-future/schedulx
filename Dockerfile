@@ -57,5 +57,5 @@ COPY --from=builder /home/schedulx /home/schedulx
 WORKDIR /home/schedulx
 RUN chmod +x run_api.sh && chmod +x bin/wait-for-schedulx.sh
 
-EXPOSE 9090
+EXPOSE 9091
 CMD ["/home/schedulx/run_api.sh"]

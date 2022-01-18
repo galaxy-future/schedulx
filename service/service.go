@@ -2,14 +2,16 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/galaxy-future/schedulx/api/types"
+	"github.com/galaxy-future/schedulx/client/bridgxcli"
 	"github.com/galaxy-future/schedulx/register/config/client"
-	"github.com/galaxy-future/schedulx/repository/model/db"
-
 	"github.com/galaxy-future/schedulx/register/config/log"
 	"github.com/galaxy-future/schedulx/repository"
+	"github.com/galaxy-future/schedulx/repository/model/db"
 )
 
 type ServiceSvc struct {
@@ -34,6 +36,80 @@ func GetServiceIns() *ServiceSvc {
 			serviceSvc = &ServiceSvc{}
 		})
 	return serviceSvc
+}
+
+type ServiceClusterInfo struct {
+	ServiceClusterId   int64  `json:"service_cluster_id"`
+	ServiceCluster     string `json:"service_cluster"`
+	BridgxCluster      string `json:"bridgx_cluster"`
+	InstanceCount      int64  `json:"instance_count"`
+	InstanceTypeDesc   string `json:"instance_type_desc"`
+	Provider           string `json:"provider"`
+	ComputingPowerType string `json:"computing_power_type"`
+	ChargeType         string `json:"charge_type"`
+}
+
+type ClusterListResp struct {
+	ClusterList []ServiceClusterInfo `json:"cluster_list"`
+}
+
+func (s *ServiceSvc) GetServiceClusterList(ctx context.Context, serviceName string) (*ClusterListResp, error) {
+	clusters, err := repository.GetServiceRepoInst().GetServiceClusters(ctx, serviceName, "")
+	if err != nil {
+		return nil, err
+	}
+	if len(clusters) == 0 {
+		return &ClusterListResp{}, nil
+	}
+	res := make([]ServiceClusterInfo, 0)
+	for _, cluster := range clusters {
+		resp, err := bridgxcli.GetBridgXCli(ctx).GetClusterByName(ctx, &bridgxcli.GetClusterByNameReq{ClusterName: cluster.BridgxCluster})
+		if err != nil {
+			return nil, err
+		}
+		serviceClusters, err := repository.GetInstanceRepoIns().GetInstanceCountByClusterIds(ctx, []int64{cluster.Id})
+		if err != nil {
+			return nil, err
+		}
+		var count int64
+		if len(serviceClusters) > 0 {
+			count = int64(serviceClusters[0].InstanceCount)
+		}
+		clusterInfo := resp.Data
+		var chargeType string
+		if clusterInfo.ChargeConfig != nil {
+			chargeType = clusterInfo.ChargeConfig.ChargeType
+		}
+		res = append(res, ServiceClusterInfo{
+			ServiceClusterId:   cluster.Id,
+			ServiceCluster:     cluster.ClusterName,
+			BridgxCluster:      cluster.BridgxCluster,
+			InstanceCount:      count,
+			InstanceTypeDesc:   genDesc(clusterInfo.InstanceType, clusterInfo.InstanceCore, clusterInfo.InstanceMemory),
+			ComputingPowerType: getComputingPowerType(clusterInfo.Provider, clusterInfo.InstanceType),
+			Provider:           clusterInfo.Provider,
+			ChargeType:         chargeType,
+		})
+	}
+	return &ClusterListResp{ClusterList: res}, nil
+}
+
+func getComputingPowerType(provider, instanceType string) string {
+	switch provider {
+	case "AlibabaCloud":
+		if strings.Contains(instanceType, "gn") {
+			return "GPU"
+		}
+	case "HuaweiCloud":
+		if strings.HasPrefix(instanceType, "G") || strings.HasPrefix(instanceType, "P") {
+			return "GPU"
+		}
+	}
+	return "CPU"
+}
+
+func genDesc(instanceType string, core, memory int) string {
+	return fmt.Sprintf("%d核%dG(%v)", core, memory, instanceType)
 }
 
 func (s *ServiceSvc) GetServiceList(ctx context.Context, page, pageSize int, serviceName, lang string) (map[string]interface{}, error) {

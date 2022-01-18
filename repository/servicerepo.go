@@ -80,6 +80,23 @@ func (r *ServiceRepo) GetServiceCluster(ctx context.Context, id int64) (*db.Serv
 	return obj, nil
 }
 
+func (r *ServiceRepo) GetServiceClusters(ctx context.Context, serviceName, serviceClusterName string) ([]*db.ServiceCluster, error) {
+	var err error
+	clusters := make([]*db.ServiceCluster, 0)
+	where := map[string]interface{}{
+		"service_name": serviceName,
+	}
+	if serviceClusterName != "" {
+		where["cluster_name"] = serviceClusterName
+	}
+	err = db.QueryAll(where, &clusters, "", nil)
+	if err != nil {
+		log.Logger.Error(err)
+		return nil, err
+	}
+	return clusters, nil
+}
+
 // GetServiceList 获取分页数据
 func (r *ServiceRepo) GetServiceList(ctx context.Context, page, pageSize int, serviceName, lang string) ([]ServiceListLogic, int64, error) {
 	var err error

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/galaxy-future/schedulx/api/types"
@@ -168,7 +169,7 @@ func (s *TaskService) Info(ctx context.Context, svcReq *TaskInfoSvcReq) (*TaskIn
 	}, nil
 }
 
-func (s *TaskService) InstanceList(ctx context.Context, page, pageSize, taskId int, taskStatus types.InstanceStatus) (int64, []types.InstInfoResp, error) {
+func (s *TaskService) InstanceList(ctx context.Context, page, pageSize int, taskId int64, taskStatus types.InstanceStatus) (int64, []types.InstInfoResp, error) {
 	fields := []string{"instance_id", "ip_inner", "ip_outer", "instance_status"}
 	if page == 0 {
 		page = 1
@@ -176,13 +177,14 @@ func (s *TaskService) InstanceList(ctx context.Context, page, pageSize, taskId i
 	if pageSize == 0 || pageSize > 500 {
 		pageSize = 500
 	}
-	list, count, err := repository.GetInstanceRepoIns().InstsQueryByPage(ctx, int64(taskId), taskStatus, pageSize, page, fields)
+
+	list, count, err := repository.GetInstanceRepoIns().InstsQueryByPage(ctx, taskId, taskStatus, pageSize, page, fields)
 	if err != nil {
 		log.Logger.Errorf("error:%v", err)
 		return 0, nil, err
 	}
 
-	instanceInfo := make([]types.InstInfoResp, len(list))
+	instanceInfo := make([]types.InstInfoResp, 0, len(list))
 	for _, item := range list {
 		info := types.InstInfoResp{
 			InstanceId: item.InstanceId,
@@ -193,4 +195,28 @@ func (s *TaskService) InstanceList(ctx context.Context, page, pageSize, taskId i
 		instanceInfo = append(instanceInfo, info)
 	}
 	return count, instanceInfo, nil
+}
+
+func (s *TaskService) HasRunningTask(ctx context.Context, serviceName, clusterName string) (bool, error) {
+	serviceClusters, err := repository.GetServiceRepoInst().GetServiceClusters(ctx, serviceName, clusterName)
+	if err != nil || len(serviceClusters) == 0 {
+		return false, fmt.Errorf("cluster not found, service:%v, cluster:%v", serviceName, clusterName)
+	}
+	clusterIds := make([]int64, 0, len(serviceClusters))
+	for _, cluster := range serviceClusters {
+		clusterIds = append(clusterIds, cluster.Id)
+	}
+	tmpls, err := repository.GetScheduleTemplateRepoInst().GetAllTmplsBySvcClusterId(clusterIds)
+	if err != nil || len(tmpls) == 0 {
+		return false, fmt.Errorf("templates not found, cluster_ids:%v", clusterIds)
+	}
+	schedTmplIds := make([]int64, 0, len(tmpls))
+	for _, tmpl := range tmpls {
+		schedTmplIds = append(schedTmplIds, tmpl.Id)
+	}
+	cnt, err := repository.GetTaskRepoInst().CountByCond(ctx, schedTmplIds, []string{types.TaskStatusRunning, types.TaskStatusInit})
+	if err != nil {
+		return false, err
+	}
+	return cnt > 0, nil
 }

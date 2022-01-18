@@ -4,7 +4,7 @@ networks:
   bridgx_net:
 
 services:
-  #######################  bridgx 1.0  ########################
+  #######################  schedulx 1.0  ########################
   mysql_schedulx:
     container_name: mariadb-server
     image: yobasystems/alpine-mariadb:10.5.11
@@ -21,7 +21,7 @@ services:
 
   schedulx:
     container_name: gf-ops-schedulx
-    image: "schedulx_api"
+    image: "schedulx-api"
     network_mode: "host"
     build:
       context: .

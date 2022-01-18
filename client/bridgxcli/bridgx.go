@@ -31,6 +31,11 @@ type ClusterExpandReq struct {
 	Count       int64
 }
 
+type ClusterExpandResp struct {
+	client.HttpResp
+	Data int64 `json:"data"`
+}
+
 type ClusterShrinkReq struct {
 	TaskName    string
 	ClusterName string
@@ -38,8 +43,18 @@ type ClusterShrinkReq struct {
 	Count       int64
 }
 
+type ClusterShrinkResp struct {
+	client.HttpResp
+	Data int64 `json:"data"`
+}
+
 type TaskDescribeReq struct {
 	TaskId int64
+}
+
+type TaskDescribeResp struct {
+	client.HttpResp
+	Data *bridgx.TaskDescribe `json:"data"`
 }
 
 type TaskInstancesReq struct {
@@ -47,6 +62,20 @@ type TaskInstancesReq struct {
 	InstanceStatus bridgx.InstStatus
 	PageNum        int64
 	PageSize       int64
+}
+
+type TaskInstancesResp struct {
+	client.HttpResp
+	Data *bridgx.TaskInstancesData `json:"data"`
+}
+
+type GetClusterByNameReq struct {
+	ClusterName string
+}
+
+type GetClusterByNameResp struct {
+	client.HttpResp
+	Data *bridgx.ClusterInfo `json:"data"`
 }
 
 func GetBridgXCli(ctx context.Context) *BridgXClient {
@@ -66,8 +95,8 @@ func (c *BridgXClient) exitLog(ctx context.Context, method string, req, resp int
 	log.Logger.Infof("exit log | method[%s] | req:%s | resp:%s | err:%v", method, tool.ToJson(req), tool.ToJson(resp), err)
 }
 
-func (c *BridgXClient) ClusterExpand(ctx context.Context, cliReq *ClusterExpandReq) (resp *client.HttpResp, err error) {
-	resp = &client.HttpResp{}
+func (c *BridgXClient) ClusterExpand(ctx context.Context, cliReq *ClusterExpandReq) (resp *ClusterExpandResp, err error) {
+	resp = &ClusterExpandResp{}
 	if cliReq.TaskName == "" {
 		err = client.ErrParamsMissing
 		log.Logger.Error(err, ":task_name")
@@ -90,10 +119,12 @@ func (c *BridgXClient) ClusterExpand(ctx context.Context, cliReq *ClusterExpandR
 	}
 	url := c.genUrl(clusterExpandUrl)
 	authToken := cast.ToString(ctx.Value(config.GlobalConfig.JwtToken.BindContextKeyName))
-	_, err = c.httpClient.R().SetBody(params).SetResult(resp).SetError(resp).SetAuthToken(authToken).Post(url)
+
+	ret, err := c.httpClient.R().SetBody(params).SetResult(resp).SetError(resp).SetAuthToken(authToken).Post(url)
+	log.Logger.Infof("ret:%s", ret.Body())
 	log.Logger.Infof("url:%+v", url)
 	log.Logger.Infof("params:%+v", tool.ToJson(params))
-	log.Logger.Infof("resp:%+v", resp)
+	log.Logger.Infof("resp:%+v", tool.ToJson(resp))
 	if err != nil {
 		log.Logger.Error(err)
 		return nil, err
@@ -106,8 +137,8 @@ func (c *BridgXClient) ClusterExpand(ctx context.Context, cliReq *ClusterExpandR
 	return resp, nil
 }
 
-func (c *BridgXClient) ClusterShrink(ctx context.Context, cliReq *ClusterShrinkReq) (resp *client.HttpResp, err error) {
-	resp = &client.HttpResp{}
+func (c *BridgXClient) ClusterShrink(ctx context.Context, cliReq *ClusterShrinkReq) (resp *ClusterShrinkResp, err error) {
+	resp = &ClusterShrinkResp{}
 	if cliReq.TaskName == "" {
 		err = client.ErrParamsMissing
 		log.Logger.Error(err, ":task_name")
@@ -148,10 +179,8 @@ func (c *BridgXClient) ClusterShrink(ctx context.Context, cliReq *ClusterShrinkR
 	return resp, err
 }
 
-func (c *BridgXClient) TaskDescribe(ctx context.Context, cliRq *TaskDescribeReq) (resp *client.HttpResp, err error) {
-	resp = &client.HttpResp{
-		Data: &bridgx.TaskDescribe{},
-	}
+func (c *BridgXClient) TaskDescribe(ctx context.Context, cliRq *TaskDescribeReq) (resp *TaskDescribeResp, err error) {
+	resp = &TaskDescribeResp{}
 	if cliRq.TaskId == 0 {
 		err = client.ErrParamsMissing
 		log.Logger.Error(err, ":task_id")
@@ -179,10 +208,8 @@ func (c *BridgXClient) TaskDescribe(ctx context.Context, cliRq *TaskDescribeReq)
 	return resp, err
 }
 
-func (c *BridgXClient) TaskInstances(ctx context.Context, cliReq *TaskInstancesReq) (resp *client.HttpResp, err error) {
-	resp = &client.HttpResp{
-		Data: &bridgx.TaskInstancesData{},
-	}
+func (c *BridgXClient) TaskInstances(ctx context.Context, cliReq *TaskInstancesReq) (resp *TaskInstancesResp, err error) {
+	resp = &TaskInstancesResp{}
 	if cliReq.TaskId == 0 {
 		err = client.ErrParamsMissing
 		log.Logger.Error(err, ":task_id")
@@ -218,14 +245,8 @@ func (c *BridgXClient) TaskInstances(ctx context.Context, cliReq *TaskInstancesR
 	return resp, err
 }
 
-type GetCLusterByNameReq struct {
-	ClusterName string
-}
-
-func (c *BridgXClient) GetCLusterByName(ctx context.Context, cliReq *GetCLusterByNameReq) (resp *client.HttpResp, err error) {
-	resp = &client.HttpResp{
-		Data: &bridgx.ClusterInfo{},
-	}
+func (c *BridgXClient) GetClusterByName(ctx context.Context, cliReq *GetClusterByNameReq) (resp *GetClusterByNameResp, err error) {
+	resp = &GetClusterByNameResp{}
 	if cliReq.ClusterName == "" {
 		err = client.ErrParamsMissing
 		log.Logger.Error(err, ":cluster_name")

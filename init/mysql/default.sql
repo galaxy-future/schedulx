@@ -9,19 +9,22 @@ DROP TABLE IF EXISTS `instance`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `instance`
 (
-    `id`              bigint(20) NOT NULL AUTO_INCREMENT,
-    `task_id`         bigint(20) NOT NULL COMMENT '任务 id',
-    `instance_id`     varchar(255) NOT NULL COMMENT '实例id',
-    `instance_status` varchar(16)  NOT NULL COMMENT 'INIT, BASE_ENV,SVC,ALB,NGINX,FAIL,UNALB',
-    `ip_inner`        varchar(255) NOT NULL COMMENT '私网',
-    `ip_outer`        varchar(255) NOT NULL COMMENT '公网',
-    `msg`             varchar(128) NOT NULL COMMENT '失败信息',
-    `create_at`       timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `update_at`       timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `id`                 bigint(20)   NOT NULL AUTO_INCREMENT,
+    `task_id`            bigint(20)   NOT NULL COMMENT '任务 id',
+    `service_cluster_id` bigint(20)   NOT NULL COMMENT '服务集群 id',
+    `instance_id`        varchar(255) NOT NULL COMMENT '实例id',
+    `instance_status`    varchar(16)  NOT NULL COMMENT 'INIT, BASE_ENV,SVC,ALB,NGINX,FAIL,UNALB',
+    `ip_inner`           varchar(255) NOT NULL COMMENT '私网',
+    `ip_outer`           varchar(255) NOT NULL COMMENT '公网',
+    `msg`                varchar(128) NOT NULL COMMENT '失败信息',
+    `create_at`          timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `update_at`          timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uniq_instance_id_task_id` (`instance_id`,`task_id`),
-    KEY               `idx_task_id` (`task_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+    UNIQUE KEY `uniq_instance_id_task_id` (`instance_id`, `task_id`),
+    KEY `idx_task_id` (`task_id`),
+    KEY `idx_cluster_id` (`service_cluster_id`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -124,12 +127,13 @@ DROP TABLE IF EXISTS `service_cluster`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `service_cluster`
 (
-    `id`            bigint(20) NOT NULL AUTO_INCREMENT,
-    `service_name`  varchar(32) NOT NULL COMMENT '所属服务',
-    `cluster_name`  varchar(32) NOT NULL COMMENT '服务集群名称',
-    `auto_decision` varchar(3)  NOT NULL DEFAULT 'off' COMMENT '是否开启自动扩缩容决策 on | off',
-    `create_at`     timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `update_at`     timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `id`             bigint(20)  NOT NULL AUTO_INCREMENT,
+    `service_name`   varchar(32) NOT NULL COMMENT '所属服务',
+    `cluster_name`   varchar(32) NOT NULL COMMENT '服务集群名称',
+    `bridgx_cluster` varchar(32) NOT NULL DEFAULT '' comment 'bridgx集群名称',
+    `auto_decision`  varchar(3)  NOT NULL DEFAULT 'off' COMMENT '是否开启自动扩缩容决策 on | off',
+    `create_at`      timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_at`      timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uniq_uservice_name_cluster_name` (`service_name`,`cluster_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务集群信息表';

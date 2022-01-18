@@ -5,16 +5,15 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/galaxy-future/schedulx/register/config"
-
-	"github.com/spf13/cast"
-
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/alb"
 	"github.com/galaxy-future/schedulx/api/types"
 	"github.com/galaxy-future/schedulx/pkg/cloud/aliyun"
+	"github.com/galaxy-future/schedulx/register/config"
 	"github.com/galaxy-future/schedulx/register/config/log"
 	"github.com/galaxy-future/schedulx/register/constant"
 	"github.com/galaxy-future/schedulx/repository"
+	"github.com/spf13/cast"
+	"gorm.io/gorm"
 )
 
 type MountService struct {
@@ -115,7 +114,11 @@ func (mou *MountService) Umount(ctx context.Context, svcReq *ExposeUmountSvcReq)
 	var err error
 	resp := &ExposeUmountSvcResp{}
 	instRepo := repository.GetInstanceRepoIns()
-	taskId, instanceList, err := instRepo.QueryInstsToUmount(ctx, svcReq.TaskId, types.InstanceStatusALB, cast.ToInt(svcReq.Count))
+	taskId, instanceList, err := instRepo.QueryInstsToUmount(ctx, svcReq.ServiceClusterId, types.InstanceStatusALB, cast.ToInt(svcReq.Count))
+	if err == gorm.ErrRecordNotFound {
+		//没有需要卸载的实例
+		return resp, nil
+	}
 	if err != nil {
 		return nil, err
 	}

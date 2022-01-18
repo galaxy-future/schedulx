@@ -45,3 +45,17 @@ docker-compose-start:
 
 docker-compose-stop:
 	docker-compose down
+
+docker-compose-build:
+	docker-compose build
+
+#USE make TARGET version=xx override version
+version ?= latest
+
+docker-tag:
+	docker tag schedulx-api:latest galaxyfuture/schedulx-api:${version}
+
+docker-push-hub:
+	docker push galaxyfuture/schedulx-api:${version}
+
+docker-hub-all: docker-compose-build docker-tag docker-push-hub

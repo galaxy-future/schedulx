@@ -106,3 +106,13 @@ type InstInfoResp struct {
 	IpOuter    string         `json:"ip_outer"`
 	Status     InstanceStatus `json:"instance_status"`
 }
+
+type RelationTaskId struct {
+	NodeActTaskId int64 `json:"nodeact_task_id"`
+	BridgXTaskId  int64 `json:"bridgx_task_id"`
+}
+
+const (
+	NodeactTaskId = "nodeact_task_id"
+	BridgXTaskId  = "bridgx_task_id"
+)

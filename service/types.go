@@ -22,10 +22,11 @@ type ExposeMountSvcResp struct {
 }
 
 type ExposeUmountSvcReq struct {
-	TaskId     int64  `json:"task_id"`
-	Count      int64  `json:"count"`
-	MountType  string `json:"mount_type"`
-	MountValue string `json:"mount_value"`
+	TaskId           int64  `json:"task_id"`
+	ServiceClusterId int64  `json:"service_cluster_id"`
+	Count            int64  `json:"count"`
+	MountType        string `json:"mount_type"`
+	MountValue       string `json:"mount_value"`
 }
 
 type ExposeUmountSvcResp struct {

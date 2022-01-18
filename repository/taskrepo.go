@@ -5,10 +5,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/galaxy-future/schedulx/pkg/tool"
-
 	"github.com/galaxy-future/schedulx/api/types"
+	"github.com/galaxy-future/schedulx/pkg/tool"
 	"github.com/galaxy-future/schedulx/register/config"
+	"github.com/galaxy-future/schedulx/register/config/client"
 	"github.com/galaxy-future/schedulx/register/config/log"
 	"github.com/galaxy-future/schedulx/repository/model/db"
 	jsoniter "github.com/json-iterator/go"
@@ -43,6 +43,18 @@ func (r *TaskRepo) GetLastExpandSuccTask(ctx context.Context, tmplId int64) (*db
 	return obj, nil
 }
 
+func (r *TaskRepo) CountByCond(ctx context.Context, schedTmplIds []int64, status []string) (int64, error) {
+	where := map[string]interface{}{
+		"sched_tmpl_id": schedTmplIds,
+		"task_status":   status,
+	}
+	var cnt int64
+	if err := client.ReadDBCli.Where(where).Model(&db.Task{}).Count(&cnt).Error; err != nil {
+		return 0, err
+	}
+	return cnt, nil
+}
+
 func (r *TaskRepo) CreateTask(ctx context.Context, schedTmplId, instCnt int64, operator, execType string) (int64, error) {
 	var err error
 	newTask := &db.Task{
@@ -69,16 +81,21 @@ func (r *TaskRepo) UpdateTaskRelationTaskId(ctx context.Context, taskId int64, f
 		log.Logger.Error(err)
 		return err
 	}
-	rTaskIdMap := make(map[string]interface{})
+	rtd := &types.RelationTaskId{}
 	if obj.RelationTaskId != "" {
-		err = jsoniter.Unmarshal([]byte(obj.RelationTaskId), &rTaskIdMap)
+		err = jsoniter.Unmarshal([]byte(obj.RelationTaskId), &rtd)
 		if err != nil {
 			log.Logger.Error(err)
 			return err
 		}
 	}
-	rTaskIdMap[field] = relationTaskId
-	value, _ := jsoniter.Marshal(rTaskIdMap)
+	switch field {
+	case types.BridgXTaskId:
+		rtd.BridgXTaskId = relationTaskId
+	case types.NodeactTaskId:
+		rtd.NodeActTaskId = relationTaskId
+	}
+	value, _ := jsoniter.Marshal(rtd)
 	data := map[string]interface{}{
 		"relation_task_id": value,
 	}
@@ -154,4 +171,20 @@ func (r *TaskRepo) GetTask(ctx context.Context, taskId int64) (*db.Task, error) 
 	}
 
 	return obj, err
+}
+
+func (r *TaskRepo) GetBridgXTaskId(ctx context.Context, taskId int64) (int64, error) {
+	var err error
+	task, err := r.GetTask(ctx, taskId)
+	if err != nil {
+		log.Logger.Error(err)
+		return 0, err
+	}
+	relationIds := &types.RelationTaskId{}
+	err = jsoniter.Unmarshal([]byte(task.RelationTaskId), relationIds)
+	if err != nil {
+		log.Logger.Error(err)
+		return 0, err
+	}
+	return relationIds.BridgXTaskId, nil
 }

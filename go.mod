@@ -25,4 +25,5 @@ require (
 	github.com/pkg/sftp v1.13.4
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
+	gorm.io/plugin/soft_delete v1.0.5
 )

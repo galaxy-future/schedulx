@@ -7,6 +7,7 @@ import (
 	"github.com/galaxy-future/schedulx/api/types"
 	"github.com/galaxy-future/schedulx/register/config/log"
 	"github.com/galaxy-future/schedulx/register/constant"
+	"github.com/galaxy-future/schedulx/repository"
 	"github.com/galaxy-future/schedulx/service"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
@@ -16,6 +17,8 @@ type Service struct{}
 
 type ServiceExpandHttpRequest struct {
 	ServiceClusterId int64  `form:"service_cluster_id" json:"service_cluster_id"`
+	ServiceName      string `form:"service_name" json:"service_name" `
+	ServiceCluster   string `form:"service_cluster" json:"service_cluster"`
 	Count            int64  `form:"count" json:"count"`
 	ExecType         string `form:"exec_type" json:"exec_type"`
 }
@@ -26,6 +29,8 @@ type ServiceExpandHttpResponse struct {
 
 type ServiceShrinkHttpRequest struct {
 	ServiceClusterId int64  `form:"service_cluster_id" json:"service_cluster_id"`
+	ServiceName      string `json:"service_name" form:"service_name"`
+	ServiceCluster   string `json:"service_cluster" form:"service_cluster"`
 	Count            int64  `form:"count" json:"count"`
 	ExecType         string `form:"exec_type" json:"exec_type"`
 }
@@ -53,7 +58,15 @@ func (h *Service) Expand(ctx *gin.Context) {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
 		return
 	}
-	if cast.ToInt64(httpReq.ServiceClusterId) == 0 || cast.ToInt64(httpReq.Count) == 0 {
+	clusterId := cast.ToInt64(httpReq.ServiceClusterId)
+	if clusterId == 0 {
+		detail, err := service.GetServiceIns().Detail(ctx, httpReq.ServiceName)
+		if err == nil && detail != nil {
+			clusterId = detail["service_info"].(*repository.ServiceDetailLogic).ServiceClusterId
+		}
+	}
+
+	if clusterId == 0 || cast.ToInt64(httpReq.Count) == 0 {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
 		return
 	}
@@ -63,7 +76,7 @@ func (h *Service) Expand(ctx *gin.Context) {
 	scheduleSvc := service.GetScheduleSvcInst()
 	tmplSvcReq := &service.ScheduleSvcReq{
 		ServiceExpandSvcReq: &service.ServiceExpandSvcReq{
-			ServiceClusterId: httpReq.ServiceClusterId,
+			ServiceClusterId: clusterId,
 			Count:            httpReq.Count,
 			ExecType:         httpReq.ExecType,
 		},
@@ -86,7 +99,16 @@ func (h *Service) Shrink(ctx *gin.Context) {
 	httpReq := &ServiceShrinkHttpRequest{}
 	err = ctx.BindQuery(httpReq)
 	log.Logger.Infof("httpReq:%+v", httpReq)
-	if cast.ToInt64(httpReq.ServiceClusterId) == 0 || cast.ToInt64(httpReq.Count) == 0 {
+
+	clusterId := cast.ToInt64(httpReq.ServiceClusterId)
+	if clusterId == 0 {
+		detail, err := service.GetServiceIns().Detail(ctx, httpReq.ServiceName)
+		if err == nil && detail != nil {
+			clusterId = detail["service_info"].(*repository.ServiceDetailLogic).ServiceClusterId
+		}
+	}
+
+	if clusterId == 0 || cast.ToInt64(httpReq.Count) == 0 {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
 		return
 	}
@@ -96,7 +118,7 @@ func (h *Service) Shrink(ctx *gin.Context) {
 	scheduleSvc := service.GetScheduleSvcInst()
 	tmplSvcReq := &service.ScheduleSvcReq{
 		ServiceShrinkSvcReq: &service.ServiceShrinkSvcReq{
-			ServiceClusterId: httpReq.ServiceClusterId,
+			ServiceClusterId: clusterId,
 			Count:            httpReq.Count,
 			ExecType:         httpReq.ExecType,
 		},
@@ -130,6 +152,26 @@ func (h *Service) Detail(ctx *gin.Context) {
 	return
 }
 
+func (h *Service) Scheduling(ctx *gin.Context) {
+	serviceClusterName := ctx.Query("service_cluster_name")
+	serviceName := ctx.Query("service_name")
+	if serviceName == "" || serviceClusterName == "" {
+		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
+		return
+	}
+	scheduling, err := service.GetTaskSvcInst().HasRunningTask(ctx, serviceName, serviceClusterName)
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	MkResponse(ctx, http.StatusOK, errOK, gin.H{
+		"service_name":         serviceName,
+		"service_cluster_name": serviceClusterName,
+		"scheduling":           scheduling,
+	})
+	return
+}
+
 // List 查询服务列表
 func (h *Service) List(ctx *gin.Context) {
 	var err error
@@ -149,6 +191,19 @@ func (h *Service) List(ctx *gin.Context) {
 		return
 	}
 	list, err := service.GetServiceIns().GetServiceList(ctx, pageNumInt, pageSizeInt, serviceName, language)
+	if err != nil {
+		MkResponse(ctx, http.StatusOK, err.Error(), list)
+		return
+	}
+	MkResponse(ctx, http.StatusOK, errOK, list)
+	return
+}
+
+// ClusterList 查询服务关联集群列表
+func (h *Service) ClusterList(ctx *gin.Context) {
+	var err error
+	serviceName := ctx.Query("service_name")
+	list, err := service.GetServiceIns().GetServiceClusterList(ctx, serviceName)
 	if err != nil {
 		MkResponse(ctx, http.StatusOK, err.Error(), list)
 		return
