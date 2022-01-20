@@ -43,6 +43,8 @@ type NodeActSvcReq struct {
 	InstGroup        *nodeact.InstanceGroup
 	TaskId           int64
 	ServiceClusterId int64
+	DownloadFileUrl  string
+	InstanceCount    int64
 	Auth             *types.InstanceAuth
 	//HarborRegisterUrl string // harbor 镜像服务地址，用于加入 docker 的配置允许 http 链接
 	InitServicSvcReq *InitServicSvcReq
@@ -56,6 +58,7 @@ type InitServicSvcReq struct {
 }
 type NodeActSvcResp struct {
 	InstGroup *nodeact.InstanceGroup
+	Auth      *types.InstanceAuth
 }
 
 type UmountSlbSvcReq struct {

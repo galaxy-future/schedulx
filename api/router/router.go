@@ -35,6 +35,7 @@ func Init() *gin.Engine {
 			h := &handler.Service{}
 			servicePath.GET("expand", h.Expand)
 			servicePath.GET("shrink", h.Shrink)
+			servicePath.GET("deploy", h.Deploy)
 			servicePath.GET("detail", h.Detail)
 			servicePath.GET("list", h.List)
 			servicePath.GET("scheduling", h.Scheduling)
@@ -58,10 +59,16 @@ func Init() *gin.Engine {
 			tmplExpandPath.POST("update", h.Update)
 			tmplExpandPath.POST("delete", h.Delete)
 		}
+		deployExpandPath := v1Api.Group("schedulx/template/deploy/")
+		{
+			h := &handler.TmplDeploy{}
+			deployExpandPath.GET("list", h.List)
+		}
 		taskPath := v1Api.Group("schedulx/task/")
 		{
 			h := &handler.Task{}
 			taskPath.GET("info", h.Info)
+			taskPath.GET("deploy/detail", h.GetDeployDetail)
 			taskPath.GET("instancelist", h.InstanceList)
 		}
 	}

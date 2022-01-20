@@ -38,12 +38,22 @@ type TemplateTaskLogic struct {
 	TaskStepDesc   string `json:"task_step_desc"`
 	Msg            string `json:"msg"`
 }
+
 type ExpandTemplateList struct {
 	TmplExpandId    int64  `json:"tmpl_expand_id"`
 	TmplExpandName  string `json:"tmpl_expand_name"`
 	InstClusterName string `json:"inst_cluster_name"`
 	IsContainer     bool   `json:"is_container"`
 	RegisterType    string `json:"register_type"`
+}
+
+type DeployTemplate struct {
+	TmplDeployId       int64  `json:"tmpl_deploy_id"`
+	TmplDeployName     string `json:"tmpl_deploy_name"`
+	TmplDesc           string `json:"tmpl_desc"`
+	InstClusterName    string `json:"inst_cluster_name"`
+	DeployMode         string `json:"deploy_mode"`
+	DeployResourceType string `json:"deploy_resource_type"`
 }
 
 var scheduleTemplateRepoInst *ScheduleTemplateRepo
@@ -291,6 +301,47 @@ func (r *ScheduleTemplateRepo) GetExpandList(ctx context.Context, serviceName st
 		}
 	}
 	return list, count, nil
+}
+
+func (r *ScheduleTemplateRepo) GetDeployTemplateList(ctx context.Context, serviceName string, page, pageSize, serviceClusterId int) ([]DeployTemplate, int64, error) {
+	var err error
+	var list []DeployTemplate
+	templateWhere := map[string]interface{}{
+		"service_name":       serviceName,
+		"service_cluster_id": serviceClusterId,
+		"schedule_type":      constant.ScheduleTypeDeploy,
+		"is_deleted":         0,
+	}
+	var templateModel []db.ScheduleTemplate
+	count, err := db.Query(templateWhere, page, pageSize, &templateModel, "id asc", nil, true)
+	if err != nil {
+		log.Logger.Errorf("db.Query table [schedule_tmeplate]error:%v", err)
+	}
+	if count == 0 {
+		err = gorm.ErrRecordNotFound
+		log.Logger.Error(err)
+		return nil, 0, err
+	}
+
+	list = make([]DeployTemplate, len(templateModel))
+	for index, item := range templateModel {
+		list[index] = DeployTemplate{
+			TmplDeployName:     item.TmplName,
+			TmplDeployId:       item.Id,
+			InstClusterName:    item.BridgxClusname,
+			TmplDesc:           item.Description,
+			DeployMode:         item.DeployMode,
+			DeployResourceType: getResourceType(item.DeployMode),
+		}
+	}
+	return list, count, nil
+}
+
+func getResourceType(deployMode string) string {
+	if deployMode == "k8s" {
+		return "instance_group"
+	}
+	return "cluster"
 }
 
 // Delete 删除扩缩容模板以及关联集群

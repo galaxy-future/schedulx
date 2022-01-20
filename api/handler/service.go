@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"fmt"
+	"github.com/galaxy-future/schedulx/client/bridgxcli"
 	"net/http"
 	"strconv"
 
@@ -35,7 +37,19 @@ type ServiceShrinkHttpRequest struct {
 	ExecType         string `form:"exec_type" json:"exec_type"`
 }
 
+type ServiceDeployHttpRequest struct {
+	ServiceClusterId int64  `form:"service_cluster_id" json:"service_cluster_id"`
+	DownloadFileUrl  string `form:"download_file_url" json:"download_file_url"`
+	Count            int64  `form:"count" json:"count"`
+	ExecType         string `form:"exec_type" json:"exec_type"`
+	Rollback         bool   `form:"rollback" json:"rollback"`
+}
+
 type ServiceShrinkHttpResponse struct {
+	TaskId int64 `json:"task_id"`
+}
+
+type ServiceDeployHttpResponse struct {
 	TaskId int64 `json:"task_id"`
 }
 
@@ -130,6 +144,58 @@ func (h *Service) Shrink(ctx *gin.Context) {
 	}
 	data := &ServiceShrinkHttpResponse{
 		TaskId: resp.(*service.ScheduleSvcResp).ServiceShrinkSvcResp.TaskId,
+	}
+	MkResponse(ctx, http.StatusOK, "success", data)
+	return
+}
+
+// Deploy 服务部署入口
+func (h *Service) Deploy(ctx *gin.Context) {
+	var err error
+	httpReq := &ServiceDeployHttpRequest{}
+	err = ctx.BindQuery(httpReq)
+	log.Logger.Infof("httpReq:%+v", httpReq)
+
+	clusterId := cast.ToInt64(httpReq.ServiceClusterId)
+	if clusterId == 0 {
+		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
+		return
+	}
+	serviceCluster, err := repository.GetServiceRepoInst().GetServiceCluster(ctx, clusterId)
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	var instanceCount int
+	bridgxResp, err := bridgxcli.GetBridgXCli(ctx).ClusterInstanceStat(ctx, serviceCluster.BridgxCluster)
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	if bridgxResp != nil && bridgxResp.Data != nil {
+		instanceCount = bridgxResp.Data.InstanceCount
+	}
+	if instanceCount == 0 {
+		MkResponse(ctx, http.StatusBadRequest, fmt.Sprintf("bridgx cluster:%v has no instances", serviceCluster.BridgxCluster), nil)
+		return
+	}
+	scheduleSvc := service.GetScheduleSvcInst()
+	tmplSvcReq := &service.ScheduleSvcReq{
+		ServiceDeploySvcReq: &service.ServiceDeploySvcReq{
+			ServiceClusterId: clusterId,
+			DownloadFileUrl:  httpReq.DownloadFileUrl,
+			Count:            int64(instanceCount),
+			ExecType:         httpReq.ExecType,
+			Rollback:         httpReq.Rollback,
+		},
+	}
+	resp, err := scheduleSvc.ExecAct(ctx, tmplSvcReq, scheduleSvc.Deploy)
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	data := &ServiceDeployHttpResponse{
+		TaskId: resp.(*service.ScheduleSvcResp).ServiceDeploySvcResp.TaskId,
 	}
 	MkResponse(ctx, http.StatusOK, "success", data)
 	return
@@ -279,6 +345,8 @@ func (h *Service) Update(ctx *gin.Context) {
 		ServiceInfo struct {
 			ServiceName string `json:"service_name"`
 			Description string `json:"description"`
+			Domain      string `json:"domain"`
+			Port        string `json:"port"`
 		} `json:"service_info"`
 	}{}
 	err = ctx.BindJSON(&params)
@@ -286,7 +354,7 @@ func (h *Service) Update(ctx *gin.Context) {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
 		return
 	}
-	ret, err := service.GetServiceIns().UpdateDesc(ctx, params.ServiceInfo.ServiceName, params.ServiceInfo.Description)
+	ret, err := service.GetServiceIns().Update(ctx, params.ServiceInfo.ServiceName, params.ServiceInfo.Description, params.ServiceInfo.Domain, params.ServiceInfo.Port)
 	if err != nil {
 		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
 		return

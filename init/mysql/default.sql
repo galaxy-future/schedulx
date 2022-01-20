@@ -59,7 +59,7 @@ CREATE TABLE `instruction`
 (
     `id`           bigint(20) NOT NULL AUTO_INCREMENT,
     `cmd`          varchar(1024) NOT NULL COMMENT '指令集',
-    `params`       varchar(256)  NOT NULL DEFAULT '' COMMENT '配套参数{''image_url'':''xx'', ''port'':80}',
+    `params`       varchar(256)  NOT NULL DEFAULT '' COMMENT '配套参数{"image_url":"xx", "port":80}',
     `instr_action` varchar(32)   NOT NULL COMMENT '指令的执行 bridgx.expland, bridgx.shrink, nodeact.initbase, nodeact.initsvc, mount.slb, mount.nginx, umount.slb, umount.nginx',
     `tmpl_id`      bigint(20) NOT NULL COMMENT '所属模板id',
     `is_deleted`   tinyint(4) NOT NULL DEFAULT '0' COMMENT '是否被删除 0 否 1 是',
@@ -85,6 +85,8 @@ CREATE TABLE `schedule_template`
     `service_cluster_id`    bigint(20) NOT NULL COMMENT '服务集群 id',
     `bridgx_clusname`       varchar(32) CHARACTER SET utf8 NOT NULL DEFAULT '' COMMENT 'bridgx 集群名称',
     `description`           varchar(32)                    NOT NULL DEFAULT '' COMMENT '模板描述',
+    `deploy_mode`           varchar(32)                    NOT NULL DEFAULT '' COMMENT '部署方式',
+    `tmpl_attrs`            varchar(2048)                  NULL DEFAULT NULL COMMENT '模板属性',
     `instr_group`           varchar(64)                    NOT NULL DEFAULT '' COMMENT '指令集含执行步骤[100,101,102,103]',
     `schedule_type`         varchar(32)                    NOT NULL COMMENT 'expand | shrink',
     `reverse_sched_tmpl_id` bigint(20) NOT NULL DEFAULT '0' COMMENT '反向模板的主键id',
@@ -106,11 +108,13 @@ DROP TABLE IF EXISTS `service`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `service`
 (
-    `id`           bigint(20) NOT NULL AUTO_INCREMENT,
+    `id`           bigint(20)  NOT NULL AUTO_INCREMENT,
     `service_name` varchar(32) NOT NULL COMMENT '服务名字(全局唯一)',
     `description`  varchar(32) NOT NULL COMMENT '服务描述',
     `language`     varchar(16) NOT NULL COMMENT '服务类型 java,php,golang nginx',
-    `is_deleted`   tinyint(4) NOT NULL DEFAULT '0' COMMENT '是否被删除 0 否, 1 是',
+    `domain`       varchar(64) NOT NULL COMMENT '服务域名',
+    `port`         varchar(8)  NOT NULL COMMENT '服务端口',
+    `is_deleted`   tinyint(4)  NOT NULL DEFAULT '0' COMMENT '是否被删除 0 否, 1 是',
     `create_at`    timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `update_at`    timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
@@ -157,6 +161,7 @@ CREATE TABLE `task`
     `inst_cnt`         int(11) NOT NULL COMMENT '本次任务操作的实例数量',
     `exec_type`        varchar(8)   NOT NULL COMMENT '执行方式 manual | auto',
     `msg`              varchar(128) NOT NULL COMMENT '系统信息',
+    `task_info`        varchar(1024) NULL COMMENT '任务信息',
     `begin_at`         timestamp NULL DEFAULT NULL COMMENT '任务开始时间',
     `finish_at`        timestamp NULL DEFAULT NULL COMMENT '任务结束时间',
     `create_at`        timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP,

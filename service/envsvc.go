@@ -36,6 +36,15 @@ func GetEnvOpsSvcInst() *EnvService {
 type BaseEnvInitAsyncSvcReq struct {
 	ServiceClusterId int64                 `json:"service_cluster_id"`
 	TaskId           int64                 `json:"task_id"`
+	Cmd              string                `json:"cmd"`
+	InstanceList     []*types.InstanceInfo `json:"instance_list"`
+	Auth             *types.InstanceAuth   `json:"auth"`
+}
+
+type DeployAsyncReq struct {
+	ServiceClusterId int64                 `json:"service_cluster_id"`
+	TaskId           int64                 `json:"task_id"`
+	Cmd              string                `json:"cmd"`
 	InstanceList     []*types.InstanceInfo `json:"instance_list"`
 	Auth             *types.InstanceAuth   `json:"auth"`
 }
@@ -81,11 +90,88 @@ func (s *EnvService) BaseEnvInitAsync(ctx context.Context, svcReq *BaseEnvInitAs
 	return nil
 }
 
+func (s *EnvService) DeployBeforeDownloadInitAsync(ctx context.Context, svcReq *BaseEnvInitAsyncSvcReq) error {
+	var err error
+	s.entryLog(ctx, "DeployBeforeDownloadInitAsync", svcReq)
+	defer func() {
+		s.exitLog(ctx, "DeployBeforeDownloadInitAsync", svcReq, nil, err)
+	}()
+	// 机器信息入库
+	if err = s.NodeUpdateDeploy(ctx, svcReq.InstanceList, svcReq.TaskId, svcReq.ServiceClusterId); err != nil {
+		return err
+	}
+	//异步初始化
+	ipList := svcReq.InstanceList
+	taskId := svcReq.TaskId
+	log.Logger.Info("start DeployBeforeDownloadInitAsync async")
+	var wg sync.WaitGroup
+	for _, instInfo := range ipList {
+		wg.Add(1)
+		log.Logger.Infof("async DeployBeforeDownloadInitAsync instanceid:%s", instInfo.InstanceId)
+		go func(instance *types.InstanceInfo) {
+			_ = s.DeployBeforeDownloadInitSingle(ctx, taskId, svcReq.Cmd, instance, svcReq.Auth)
+			wg.Done()
+		}(instInfo)
+	}
+	wg.Wait()
+	log.Logger.Info("end DeployBeforeDownloadInitAsync async")
+	return nil
+}
+
+func (s *EnvService) doDeploy(ctx context.Context, svcReq *DeployAsyncReq, method string, instanceStatus types.InstanceStatus) error {
+	var err error
+	s.entryLog(ctx, method, svcReq)
+	defer func() {
+		s.exitLog(ctx, method, svcReq, nil, err)
+	}()
+
+	//异步初始化
+	ipList := svcReq.InstanceList
+	taskId := svcReq.TaskId
+	log.Logger.Infof("start %v async", method)
+	var wg sync.WaitGroup
+	for _, instInfo := range ipList {
+		wg.Add(1)
+		log.Logger.Infof("async %v instanceid:%s", method, instInfo.InstanceId)
+		go func(instance *types.InstanceInfo) {
+			_ = s.ExecCmdWithUpdateInstanceStatus(ctx, taskId, svcReq.Cmd, instance, svcReq.Auth, instanceStatus)
+			wg.Done()
+		}(instInfo)
+	}
+	wg.Wait()
+	log.Logger.Infof("end %v async", method)
+	return nil
+}
+
+func (s *EnvService) DeployDownloadAsync(ctx context.Context, svcReq *DeployAsyncReq) error {
+	return s.doDeploy(ctx, svcReq, "DeployDownloadAsync", types.InstanceStatusDownload)
+}
+
+func (s *EnvService) BeforeDeployAsync(ctx context.Context, svcReq *DeployAsyncReq) error {
+	return s.doDeploy(ctx, svcReq, "BeforeDeployAsync", types.InstanceStatusBeforeDeploy)
+}
+
+func (s *EnvService) DeployAsync(ctx context.Context, svcReq *DeployAsyncReq) error {
+	return s.doDeploy(ctx, svcReq, "DeployAsync", types.InstanceStatusDeploy)
+}
+
+func (s *EnvService) AfterDeployAsync(ctx context.Context, svcReq *DeployAsyncReq) error {
+	return s.doDeploy(ctx, svcReq, "AfterDeployAsync", types.InstanceStatusAfterDeploy)
+}
+
 func (s *EnvService) NodeUpdateStore(ctx context.Context, instanceList []*types.InstanceInfo, taskId, serviceClusterId int64) error {
 	var err error
 	repo := repository.GetInstanceRepoIns()
 	// todo UpInsertTask()
 	if err = repo.UpInsertInstanceBatch(ctx, instanceList, taskId, serviceClusterId); err != nil {
+		return err
+	}
+	return nil
+}
+func (s *EnvService) NodeUpdateDeploy(ctx context.Context, instanceList []*types.InstanceInfo, taskId, serviceClusterId int64) error {
+	var err error
+	repo := repository.GetInstanceRepoIns()
+	if err = repo.UpInsertInstanceBatchByCluster(ctx, instanceList, taskId, serviceClusterId); err != nil {
 		return err
 	}
 	return nil
@@ -116,6 +202,55 @@ func (s *EnvService) BaseEnvInitSingle(ctx context.Context, taskId int64, inst *
 		instanceStatus = types.InstanceStatusFail
 		err = errors.New("run init_base.sh err")
 		log.Logger.Errorf("RemoteCmdExec:%s", res)
+		return err
+	}
+	return nil
+}
+
+func (s *EnvService) DeployBeforeDownloadInitSingle(ctx context.Context, taskId int64, cmd string, inst *types.InstanceInfo, auth *types.InstanceAuth) error {
+	var err error
+	instanceStatus := types.InstanceStatusBase
+	defer func() {
+		if r := recover(); r != nil {
+			log.Logger.Errorf("%s", debug.Stack())
+			err = config.ErrSysPanic
+		}
+		var msg string
+		if err != nil {
+			msg = err.Error()
+		}
+		_ = s.CallBackSvc(ctx, taskId, inst.InstanceId, instanceStatus, msg)
+	}()
+	if cmd == "" {
+		return nil
+	}
+	_, err = RemoteCmdExec(ctx, cmd, _remoteBaseEnvScript, inst.IpInner, auth.UserName, auth.Pwd)
+	if err != nil {
+		instanceStatus = types.InstanceStatusFail
+		return err
+	}
+	return nil
+}
+
+func (s *EnvService) ExecCmdWithUpdateInstanceStatus(ctx context.Context, taskId int64, cmd string, inst *types.InstanceInfo, auth *types.InstanceAuth, instanceStatus types.InstanceStatus) error {
+	var err error
+	defer func() {
+		if r := recover(); r != nil {
+			log.Logger.Errorf("%s", debug.Stack())
+			err = config.ErrSysPanic
+		}
+		var msg string
+		if err != nil {
+			msg = err.Error()
+		}
+		_ = s.CallBackSvc(ctx, taskId, inst.InstanceId, instanceStatus, msg)
+	}()
+	if cmd == "" {
+		return nil
+	}
+	_, err = RemoteCmdExec(ctx, cmd, _remoteBaseEnvScript, inst.IpInner, auth.UserName, auth.Pwd)
+	if err != nil {
+		instanceStatus = types.InstanceStatusFail
 		return err
 	}
 	return nil
