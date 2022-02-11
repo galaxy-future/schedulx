@@ -23,6 +23,8 @@ type ServiceRepo struct {
 type ServiceListLogic struct {
 	ServiceId          int64  `json:"service_id"`
 	ServiceName        string `json:"service_name"`
+	Domain             string `json:"domain"`
+	Port               string `json:"port"`
 	ClusterNum         int    `json:"cluster_num"`
 	Language           string `json:"language"`
 	ImageUrl           string `json:"image_url"`
@@ -33,6 +35,7 @@ type ServiceListLogic struct {
 	Description        string `json:"description"`
 	AutoDecision       string `json:"auto_decision"`
 	TaskTypeStatus     string `json:"task_type_status"`
+	DeployMode         string `json:"deploy_mode"`
 }
 
 // ServiceDetailLogic 服务详情数据
@@ -198,10 +201,13 @@ func (r *ServiceRepo) GetServiceList(ctx context.Context, page, pageSize int, se
 			ImageUrl:           imageUrl,
 			ServiceClusterId:   modelCluster.Id,
 			ServiceClusterName: modelCluster.ClusterName,
+			Domain:             item.Domain,
+			Port:               item.Port,
 			AutoDecision:       modelCluster.AutoDecision,
 			TmplExpandId:       modelTempLate.Id,
 			TmplExpandName:     modelTempLate.TmplName,
 			TaskTypeStatus:     modelTask.TaskStatus,
+			DeployMode:         modelTempLate.DeployMode,
 		}
 	}
 	return list, count, err
@@ -253,7 +259,7 @@ func (r *ServiceRepo) GetServiceDetail(ctx context.Context, serviceName string) 
 	return detailInfo, nil
 }
 
-func (r *ServiceRepo) UpdateDesc(ctx context.Context, serviceName, description string) (int64, error) {
+func (r *ServiceRepo) Update(ctx context.Context, serviceName, description, domain, port string) (int64, error) {
 	var err error
 	serviceModel := db.Service{}
 	where := map[string]interface{}{
@@ -261,6 +267,12 @@ func (r *ServiceRepo) UpdateDesc(ctx context.Context, serviceName, description s
 	}
 	fields := map[string]interface{}{
 		"description": description,
+	}
+	if domain != "" {
+		fields["domain"] = domain
+	}
+	if port != "" {
+		fields["port"] = port
 	}
 	records, err := db.Updates(&serviceModel, where, fields, nil)
 	if err != nil {

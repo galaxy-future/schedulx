@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/galaxy-future/schedulx/register/config/log"
 	"github.com/galaxy-future/schedulx/repository"
 	"github.com/galaxy-future/schedulx/repository/model/db"
+	"github.com/galaxy-future/schedulx/template"
 	jsoniter "github.com/json-iterator/go"
 	"gorm.io/gorm"
 )
@@ -26,6 +28,12 @@ type InstrSvc struct {
 	UmountSLB       types.Action
 	MountNginx      types.Action
 	UmountNginx     types.Action
+
+	NodeActBeforeDownload types.Action //before download
+	NodeActDownload       types.Action //download executable file
+	NodeActBeforeDeploy   types.Action //before deploy
+	NodeActDeploy         types.Action //deploy
+	NodeActAfterDeploy    types.Action //after deploy
 }
 
 var instrSvcSvc *InstrSvc
@@ -34,14 +42,20 @@ var instrSvcOnce sync.Once
 func GetInstrSvcInst() *InstrSvc {
 	instrSvcOnce.Do(func() {
 		instrSvcSvc = &InstrSvc{
-			"bridgx.expand",
-			"bridgx.shrink",
-			"nodeact.initbase",
-			"nodeact.initsvc",
-			"mount.slb",
-			"umount.slb",
-			"mount.nginx",
-			"umount.nginx",
+			BridgXExpand:    "bridgx.expand",
+			BridgXShrink:    "bridgx.shrink",
+			NodeActInitBase: "nodeact.initbase",
+			NodeActInitSvc:  "nodeact.initsvc",
+			MountSLB:        "mount.slb",
+			UmountSLB:       "umount.slb",
+			MountNginx:      "mount.nginx",
+			UmountNginx:     "umount.nginx",
+
+			NodeActBeforeDownload: "nodeact.before_download",
+			NodeActDownload:       "nodeact.download",
+			NodeActBeforeDeploy:   "nodeact.before_deploy",
+			NodeActDeploy:         "nodeact.deploy",
+			NodeActAfterDeploy:    "nodeact.after_deploy",
 		}
 	})
 
@@ -108,6 +122,16 @@ func (s *InstrSvc) ExecAct(ctx context.Context, args interface{}, act types.Acti
 		svcResp, err = s.nodeActMountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.Instruction)
 	case s.UmountSLB:
 		svcResp, err = s.nodeActUmountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.TaskId, svcReq.NodeActSvcReq.UmountSlbSvcReq, svcReq.Instruction, svcReq.ServiceClusterId)
+	case s.NodeActBeforeDownload:
+		svcResp, err = s.nodeActBeforeDownload(ctx, svcReq)
+	case s.NodeActDownload:
+		svcResp, err = s.nodeActDownloadExecutableFile(ctx, svcReq)
+	case s.NodeActBeforeDeploy:
+		svcResp, err = s.nodeActBeforeDeploy(ctx, svcReq)
+	case s.NodeActDeploy:
+		svcResp, err = s.nodeActDeploy(ctx, svcReq)
+	case s.NodeActAfterDeploy:
+		svcResp, err = s.nodeActAfterDeploy(ctx, svcReq)
 	default:
 		err = errors.New("no act matched")
 	}
@@ -466,6 +490,95 @@ func (s *InstrSvc) CreateBaseEnvInstr(ctx context.Context, args *types.BaseEnv, 
 	return obj.Id, 0, nil
 }
 
+func (s *InstrSvc) CreateInstanceBeforeDownload(ctx context.Context, args *types.DeployInfo, tmpId int64, dbo *gorm.DB) (int64, error) {
+	//创建 instruction
+	var err error
+	obj := &db.Instruction{
+		Cmd:         args.BeforeDownloadCmd,
+		InstrAction: s.NodeActBeforeDownload,
+		TmplId:      tmpId,
+	}
+	err = db.Create(obj, dbo)
+	if err != nil {
+		log.Logger.Error(err)
+		return 0, err
+	}
+	return obj.Id, nil
+}
+
+func (s *InstrSvc) CreateInstanceDownloadExec(ctx context.Context, args *types.DeployInfo, tmpId int64, dbo *gorm.DB) (int64, error) {
+	//创建 instruction
+	var err error
+	params, _ := jsoniter.MarshalToString(&types.DownloadExec{
+		DeployFilePath: args.DeployFilePath,
+		DeployFileName: args.DeployFileName,
+	})
+	obj := &db.Instruction{
+		Cmd:         template.GetDownloadExecCmd(),
+		Params:      params,
+		InstrAction: s.NodeActDownload,
+		TmplId:      tmpId,
+	}
+	err = db.Create(obj, dbo)
+	if err != nil {
+		log.Logger.Error(err)
+		return 0, err
+	}
+	return obj.Id, nil
+}
+
+func (s *InstrSvc) CreateInstanceBeforeDeploy(ctx context.Context, args *types.DeployInfo, tmpId int64, dbo *gorm.DB) (int64, error) {
+	//创建 instruction
+	var err error
+	obj := &db.Instruction{
+		Cmd:         args.BeforeDeployCmd,
+		InstrAction: s.NodeActBeforeDeploy,
+		TmplId:      tmpId,
+	}
+	err = db.Create(obj, dbo)
+	if err != nil {
+		log.Logger.Error(err)
+		return 0, err
+	}
+	return obj.Id, nil
+}
+
+func (s *InstrSvc) CreateInstanceDeploy(ctx context.Context, args *types.DeployInfo, tmpId int64, dbo *gorm.DB) (int64, error) {
+	//创建 instruction
+	var err error
+	params, _ := jsoniter.MarshalToString(&types.DeployParams{
+		EnvVariables: args.EnvVariables,
+	})
+	obj := &db.Instruction{
+		Params:      params,
+		Cmd:         args.DeployCmd,
+		InstrAction: s.NodeActDeploy,
+		TmplId:      tmpId,
+	}
+	err = db.Create(obj, dbo)
+	if err != nil {
+		log.Logger.Error(err)
+		return 0, err
+	}
+	return obj.Id, nil
+}
+
+func (s *InstrSvc) CreateInstanceAfterDeploy(ctx context.Context, args *types.DeployInfo, tmpId int64, dbo *gorm.DB) (int64, error) {
+	//创建 instruction
+	var err error
+	obj := &db.Instruction{
+		Cmd:         args.AfterDeployCmd,
+		InstrAction: s.NodeActAfterDeploy,
+		TmplId:      tmpId,
+	}
+	err = db.Create(obj, dbo)
+	if err != nil {
+		log.Logger.Error(err)
+		return 0, err
+	}
+	return obj.Id, nil
+}
+
 func (s *InstrSvc) CreateServiceEnvInstr(ctx context.Context, args *types.ServiceEnv, tmplId int64, needReverse bool, dbo *gorm.DB) (int64, int64, error) {
 	pass, err := tool.AesEncrypt([]byte(args.Password), []byte(args.Account))
 	if err != nil {
@@ -549,4 +662,231 @@ func (s *InstrSvc) CreateUMountSlbInstr(ctx context.Context, args *types.ParamsM
 		return 0, err
 	}
 	return obj.Id, nil
+}
+
+func (s *InstrSvc) nodeActBeforeDownload(ctx context.Context, req *InstrSvcReq) (*InstrSvcResp, error) {
+	var err error
+	taskRepo := repository.GetTaskRepoInst()
+	_ = taskRepo.UpdateTaskStep(ctx, req.ScheduleTaskId, types.TaskStepDeployBeforeDownloadInit, "")
+	defer func() {
+		if err == nil {
+			_ = taskRepo.UpdateTaskStep(ctx, req.ScheduleTaskId, types.TaskStepDeployBeforeDownloadSucc, "")
+		} else {
+			_ = taskRepo.UpdateTaskStep(ctx, req.ScheduleTaskId, types.TaskStepDeployBeforeDownloadFail, err.Error())
+		}
+	}()
+	var ret *InstrSvcResp
+	if req.NodeActSvcReq.InstGroup == nil || len(req.NodeActSvcReq.InstGroup.InstanceList) == 0 {
+		ret, err = getBridgxInstances(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		req.NodeActSvcReq.InstGroup = ret.NodeActSvcResp.InstGroup
+		req.NodeActSvcReq.Auth = ret.NodeActSvcResp.Auth
+	}
+
+	baseEnvReq := &BaseEnvInitAsyncSvcReq{
+		ServiceClusterId: req.ServiceClusterId,
+		TaskId:           req.ScheduleTaskId,
+		InstanceList:     req.NodeActSvcReq.InstGroup.InstanceList,
+		Auth:             req.NodeActSvcReq.Auth,
+		Cmd:              req.Instruction.Cmd,
+	}
+	err = GetEnvOpsSvcInst().DeployBeforeDownloadInitAsync(ctx, baseEnvReq)
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+func getBridgxInstances(ctx context.Context, req *InstrSvcReq) (*InstrSvcResp, error) {
+	var sc *db.ServiceCluster
+	sc, err := repository.GetServiceRepoInst().GetServiceCluster(ctx, req.ServiceClusterId)
+	if err != nil {
+		return nil, err
+	}
+	var cluster *BridgXSvcResp
+	cluster, err = bridgXSvc.getClusterAction(ctx, sc.BridgxCluster)
+	if err != nil {
+		return nil, err
+	}
+	var clusterInstances *BridgXSvcResp
+	clusterInstances, err = bridgXSvc.clusterInstances(ctx, sc.BridgxCluster)
+	if err != nil {
+		return nil, err
+	}
+	ret := &InstrSvcResp{}
+	ret.NodeActSvcResp = &NodeActSvcResp{}
+	ret.NodeActSvcResp.InstGroup = clusterInstances.InstGroup
+	ret.NodeActSvcResp.Auth = cluster.Auth
+	return ret, nil
+}
+
+func (s *InstrSvc) nodeActDownloadExecutableFile(ctx context.Context, req *InstrSvcReq) (*InstrSvcResp, error) {
+	var err error
+	taskRepo := repository.GetTaskRepoInst()
+	_ = taskRepo.UpdateTaskStep(ctx, req.ScheduleTaskId, types.TaskStepDeployDownloadInit, "")
+	defer func() {
+		if err == nil {
+			_ = taskRepo.UpdateTaskStep(ctx, req.ScheduleTaskId, types.TaskStepDeployDownloadSucc, "")
+		} else {
+			_ = taskRepo.UpdateTaskStep(ctx, req.ScheduleTaskId, types.TaskStepDeployDownloadFail, err.Error())
+		}
+	}()
+	param := types.DownloadExec{}
+	err = jsoniter.UnmarshalFromString(req.Instruction.Params, &param)
+	if err != nil {
+		return nil, err
+	}
+	cmd, err := template.ParseDownloadExecCmd(template.DownloadParams{
+		DownloadFileUrl: req.NodeActSvcReq.DownloadFileUrl,
+		DeployFilePath:  param.DeployFilePath,
+		DeployFileName:  param.DeployFileName,
+	})
+	instanceList, err := repository.GetInstanceRepoIns().InstsQueryByTaskId(ctx, req.ScheduleTaskId, types.InstanceStatusBase, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(instanceList) == 0 {
+		err = fmt.Errorf("instances not found, taskId:%v", req.ScheduleTaskId)
+		return nil, err
+	}
+
+	downloadReq := &DeployAsyncReq{
+		ServiceClusterId: req.ServiceClusterId,
+		TaskId:           req.ScheduleTaskId,
+		InstanceList:     transform(instanceList),
+		Auth:             req.NodeActSvcReq.Auth,
+		Cmd:              cmd,
+	}
+	err = GetEnvOpsSvcInst().DeployDownloadAsync(ctx, downloadReq)
+	if err != nil {
+		return nil, err
+	}
+	return &InstrSvcResp{}, nil
+}
+
+func transform(instanceList []*db.Instance) []*types.InstanceInfo {
+	ret := make([]*types.InstanceInfo, 0, len(instanceList))
+	for _, instance := range instanceList {
+		ret = append(ret, &types.InstanceInfo{
+			IpInner:    instance.IpInner,
+			IpOuter:    instance.IpOuter,
+			InstanceId: instance.InstanceId,
+		})
+	}
+	return ret
+}
+
+func (s *InstrSvc) nodeActBeforeDeploy(ctx context.Context, req *InstrSvcReq) (*InstrSvcResp, error) {
+	var err error
+	taskRepo := repository.GetTaskRepoInst()
+	_ = taskRepo.UpdateTaskStep(ctx, req.ScheduleTaskId, types.TaskStepDeployBeforeDeployInit, "")
+	defer func() {
+		if err == nil {
+			_ = taskRepo.UpdateTaskStep(ctx, req.ScheduleTaskId, types.TaskStepDeployBeforeDeploySucc, "")
+		} else {
+			_ = taskRepo.UpdateTaskStep(ctx, req.ScheduleTaskId, types.TaskStepDeployBeforeDeployFail, err.Error())
+		}
+	}()
+
+	instanceList, err := repository.GetInstanceRepoIns().InstsQueryByTaskId(ctx, req.ScheduleTaskId, types.InstanceStatusDownload, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(instanceList) == 0 {
+		err = fmt.Errorf("instances not found, taskId:%v", req.ScheduleTaskId)
+		return nil, err
+	}
+
+	downloadReq := &DeployAsyncReq{
+		ServiceClusterId: req.ServiceClusterId,
+		TaskId:           req.ScheduleTaskId,
+		InstanceList:     transform(instanceList),
+		Auth:             req.NodeActSvcReq.Auth,
+		Cmd:              req.Instruction.Cmd,
+	}
+	err = GetEnvOpsSvcInst().BeforeDeployAsync(ctx, downloadReq)
+	if err != nil {
+		return nil, err
+	}
+	return &InstrSvcResp{}, nil
+}
+
+func (s *InstrSvc) nodeActDeploy(ctx context.Context, req *InstrSvcReq) (*InstrSvcResp, error) {
+	var err error
+	taskRepo := repository.GetTaskRepoInst()
+	_ = taskRepo.UpdateTaskStep(ctx, req.ScheduleTaskId, types.TaskStepDeployDeployInit, "")
+	defer func() {
+		if err == nil {
+			_ = taskRepo.UpdateTaskStep(ctx, req.ScheduleTaskId, types.TaskStepDeployDeploySucc, "")
+		} else {
+			_ = taskRepo.UpdateTaskStep(ctx, req.ScheduleTaskId, types.TaskStepDeployDeployFail, err.Error())
+		}
+	}()
+
+	instanceList, err := repository.GetInstanceRepoIns().InstsQueryByTaskId(ctx, req.ScheduleTaskId, types.InstanceStatusBeforeDeploy, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(instanceList) == 0 {
+		err = fmt.Errorf("instances not found, taskId:%v", req.ScheduleTaskId)
+		return nil, err
+	}
+	param := types.DeployParams{}
+	err = jsoniter.UnmarshalFromString(req.Instruction.Params, &param)
+	if err != nil {
+		return nil, err
+	}
+	cmd, err := template.ParseDeployCmd(template.DeployParams{
+		EnvVariables: param.EnvVariables,
+		RawCmd:       req.Instruction.Cmd,
+	})
+	downloadReq := &DeployAsyncReq{
+		ServiceClusterId: req.ServiceClusterId,
+		TaskId:           req.ScheduleTaskId,
+		InstanceList:     transform(instanceList),
+		Auth:             req.NodeActSvcReq.Auth,
+		Cmd:              cmd,
+	}
+	err = GetEnvOpsSvcInst().DeployAsync(ctx, downloadReq)
+	if err != nil {
+		return nil, err
+	}
+	return &InstrSvcResp{}, nil
+}
+
+func (s *InstrSvc) nodeActAfterDeploy(ctx context.Context, req *InstrSvcReq) (*InstrSvcResp, error) {
+	var err error
+	taskRepo := repository.GetTaskRepoInst()
+	_ = taskRepo.UpdateTaskStep(ctx, req.ScheduleTaskId, types.TaskStepDeployAfterDeployInit, "")
+	defer func() {
+		if err == nil {
+			_ = taskRepo.UpdateTaskStep(ctx, req.ScheduleTaskId, types.TaskStepDeployAfterDeploySucc, "")
+		} else {
+			_ = taskRepo.UpdateTaskStep(ctx, req.ScheduleTaskId, types.TaskStepDeployAfterDeployFail, err.Error())
+		}
+	}()
+
+	instanceList, err := repository.GetInstanceRepoIns().InstsQueryByTaskId(ctx, req.ScheduleTaskId, types.InstanceStatusDeploy, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(instanceList) == 0 {
+		err = fmt.Errorf("instances not found, taskId:%v", req.ScheduleTaskId)
+		return nil, err
+	}
+
+	downloadReq := &DeployAsyncReq{
+		ServiceClusterId: req.ServiceClusterId,
+		TaskId:           req.ScheduleTaskId,
+		InstanceList:     transform(instanceList),
+		Auth:             req.NodeActSvcReq.Auth,
+		Cmd:              req.Instruction.Cmd,
+	}
+	err = GetEnvOpsSvcInst().AfterDeployAsync(ctx, downloadReq)
+	if err != nil {
+		return nil, err
+	}
+	return &InstrSvcResp{}, nil
 }

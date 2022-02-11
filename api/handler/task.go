@@ -22,7 +22,7 @@ type TaskInfoResponse struct {
 	TaskInfo *types.TaskInfo `json:"task_info"`
 }
 
-// Info 查询任务详情
+// Info 查询任务进度信息
 func (h *Task) Info(ctx *gin.Context) {
 	var err error
 	taskId := ctx.Query("task_id")
@@ -47,5 +47,28 @@ func (h *Task) Info(ctx *gin.Context) {
 		TaskInfo: svcResp.TaskInfo,
 	}
 	MkResponse(ctx, http.StatusOK, errOK, data)
+	return
+}
+
+// GetDeployDetail 查询部署任务详情
+func (h *Task) GetDeployDetail(ctx *gin.Context) {
+	var err error
+	serviceClusterId := ctx.Query("service_cluster_id")
+	taskId := ctx.Query("task_id")
+	if cast.ToInt64(serviceClusterId) == 0 {
+		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
+		return
+	}
+	task, err := service.GetTaskSvcInst().GetRunningTask(ctx, cast.ToInt64(serviceClusterId), cast.ToInt64(taskId))
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		MkResponse(ctx, http.StatusOK, "record not found", nil)
+		return
+	}
+
+	MkResponse(ctx, http.StatusOK, errOK, task)
 	return
 }

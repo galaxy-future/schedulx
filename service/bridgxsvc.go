@@ -318,6 +318,57 @@ func (s *BridgXSvc) getClusterAction(ctx context.Context, clusterName string) (*
 	return resp, nil
 }
 
+func (s *BridgXSvc) clusterInstances(ctx context.Context, clusterName string) (*BridgXSvcResp, error) {
+	pageNum := 1
+	bCli := bridgxcli.GetBridgXCli(ctx)
+	cliReq2 := &bridgxcli.ClusterInstancesReq{
+		ClusterName:    clusterName,
+		InstanceStatus: bridgx.Running,
+		PageSize:       50,
+	}
+	var InstanceList []*types.InstanceInfo
+	instCnt := 0
+
+	for {
+		cliReq2.PageNum = int64(pageNum)
+		httpResp, err := bCli.ClusterInstances(ctx, cliReq2)
+		if err != nil {
+			if err != nil {
+				log.Logger.Errorf("cluster/instances 信息查询异常:%v | cluster:%v", err, clusterName)
+				return nil, err
+			}
+		}
+		clusterInstancesData := httpResp.Data
+		if pageNum == 1 {
+			InstanceList = make([]*types.InstanceInfo, 0, clusterInstancesData.Pager.Total)
+		}
+		if pageNum == 1 && len(clusterInstancesData.InstanceList) == 0 {
+			err = errors.New("no instances found")
+			log.Logger.Error(err)
+			return nil, err
+		}
+		for _, item := range clusterInstancesData.InstanceList {
+			inst := &types.InstanceInfo{
+				IpInner:    item.IpInner,
+				IpOuter:    item.IpOuter,
+				InstanceId: item.InstanceId,
+			}
+			InstanceList = append(InstanceList, inst)
+		}
+		instCnt += len(clusterInstancesData.InstanceList)
+		if instCnt >= clusterInstancesData.Pager.Total {
+			break
+		}
+		pageNum++
+	}
+	InstGroup := &nodeact.InstanceGroup{}
+	InstGroup.InstanceList = InstanceList
+	resp := &BridgXSvcResp{}
+	resp.InstGroup = InstGroup
+
+	return resp, nil
+}
+
 func (s *BridgXSvc) RatePass(rate string) bool {
 	if cast.ToFloat64(rate) >= 1 {
 		return true

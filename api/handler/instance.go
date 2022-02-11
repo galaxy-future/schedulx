@@ -3,11 +3,11 @@ package handler
 import (
 	"net/http"
 
-	"github.com/galaxy-future/schedulx/repository"
-	"github.com/spf13/cast"
 	"github.com/galaxy-future/schedulx/api/types"
+	"github.com/galaxy-future/schedulx/repository"
 	"github.com/galaxy-future/schedulx/service"
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/cast"
 )
 
 type Instance struct{}

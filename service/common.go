@@ -44,7 +44,7 @@ func RemoteCmdExec(ctx context.Context, localCmd string, remoteScript string, ip
 		log.Logger.Error("ssh client Run", err)
 		return data, err
 	}
-	log.Logger.Infof("ssh client Run:%s", data)
+	log.Logger.Infof("ssh client Run result:%s", data)
 	return data, nil
 }
 

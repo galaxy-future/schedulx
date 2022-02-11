@@ -64,6 +64,18 @@ type TaskInstancesReq struct {
 	PageSize       int64
 }
 
+type ClusterInstancesReq struct {
+	InstanceStatus bridgx.InstStatus
+	ClusterName    string
+	PageNum        int64
+	PageSize       int64
+}
+
+type ClusterInstancesResp struct {
+	client.HttpResp
+	Data *bridgx.InstancesData `json:"data"`
+}
+
 type TaskInstancesResp struct {
 	client.HttpResp
 	Data *bridgx.TaskInstancesData `json:"data"`
@@ -76,6 +88,11 @@ type GetClusterByNameReq struct {
 type GetClusterByNameResp struct {
 	client.HttpResp
 	Data *bridgx.ClusterInfo `json:"data"`
+}
+
+type ClusterInstanceStatResp struct {
+	client.HttpResp
+	Data *bridgx.ClusterInstanceStat `json:"data"`
 }
 
 func GetBridgXCli(ctx context.Context) *BridgXClient {
@@ -245,6 +262,39 @@ func (c *BridgXClient) TaskInstances(ctx context.Context, cliReq *TaskInstancesR
 	return resp, err
 }
 
+func (c *BridgXClient) ClusterInstances(ctx context.Context, cliReq *ClusterInstancesReq) (resp *ClusterInstancesResp, err error) {
+	resp = &ClusterInstancesResp{}
+
+	if cliReq.InstanceStatus == "" {
+		err = client.ErrParamsMissing
+		log.Logger.Error(err, ":instance_status")
+		return nil, err
+	}
+	params := map[string]string{
+		"status":       string(cliReq.InstanceStatus),
+		"cluster_name": cliReq.ClusterName,
+		"page_number":  tool.Interface2String(cliReq.PageNum),
+		"page_size":    tool.Interface2String(cliReq.PageSize),
+	}
+	url := c.genUrl(clusterInstancesUrl)
+	authToken := cast.ToString(ctx.Value(config.GlobalConfig.JwtToken.BindContextKeyName))
+	rr, err := c.httpClient.R().SetQueryParams(params).SetResult(resp).SetError(resp).SetAuthToken(authToken).Get(url)
+	log.Logger.Infof("rr:%s", rr.Body())
+	log.Logger.Infof("url:%v", url)
+	log.Logger.Infof("params:%+v", tool.ToJson(params))
+	log.Logger.Infof("resp:%v", tool.ToJson(resp))
+	if err != nil {
+		log.Logger.Error(err)
+		return nil, err
+	}
+	if resp.Code != http.StatusOK {
+		err = fmt.Errorf("http code:%v | msg:%v", resp.Code, resp.Msg)
+		log.Logger.Error(err)
+		return nil, err
+	}
+	return resp, err
+}
+
 func (c *BridgXClient) GetClusterByName(ctx context.Context, cliReq *GetClusterByNameReq) (resp *GetClusterByNameResp, err error) {
 	resp = &GetClusterByNameResp{}
 	if cliReq.ClusterName == "" {
@@ -255,6 +305,34 @@ func (c *BridgXClient) GetClusterByName(ctx context.Context, cliReq *GetClusterB
 	url := tool.StrAppend(c.genUrl(clusterGetByNameUrl), "/", cliReq.ClusterName)
 	authToken := cast.ToString(ctx.Value(config.GlobalConfig.JwtToken.BindContextKeyName))
 	rr, err := c.httpClient.R().SetResult(resp).SetError(resp).SetAuthToken(authToken).Get(url)
+	log.Logger.Infof("rr:%s", rr.Body())
+	log.Logger.Infof("url:%v", url)
+	log.Logger.Infof("resp:%v", tool.ToJson(resp))
+	if err != nil {
+		log.Logger.Error(err)
+		return nil, err
+	}
+	if resp.Code != http.StatusOK {
+		err = fmt.Errorf("http code:%v | msg:%v", resp.Code, resp.Msg)
+		log.Logger.Error(err)
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *BridgXClient) ClusterInstanceStat(ctx context.Context, bridgxClusterName string) (resp *ClusterInstanceStatResp, err error) {
+	resp = &ClusterInstanceStatResp{}
+	if bridgxClusterName == "" {
+		err = client.ErrParamsMissing
+		log.Logger.Error(err, ":cluster_name")
+		return nil, err
+	}
+	params := map[string]string{
+		"cluster_name": bridgxClusterName,
+	}
+	url := c.genUrl(clusterInstanceStat)
+	authToken := cast.ToString(ctx.Value(config.GlobalConfig.JwtToken.BindContextKeyName))
+	rr, err := c.httpClient.R().SetQueryParams(params).SetResult(resp).SetError(resp).SetAuthToken(authToken).Get(url)
 	log.Logger.Infof("rr:%s", rr.Body())
 	log.Logger.Infof("url:%v", url)
 	log.Logger.Infof("resp:%v", tool.ToJson(resp))

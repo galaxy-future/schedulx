@@ -55,16 +55,23 @@ func (r *TaskRepo) CountByCond(ctx context.Context, schedTmplIds []int64, status
 	return cnt, nil
 }
 
-func (r *TaskRepo) CreateTask(ctx context.Context, schedTmplId, instCnt int64, operator, execType string) (int64, error) {
+func (r *TaskRepo) CreateTask(ctx context.Context, schedTmplId, instCnt int64, operator, execType, taskInfo string, isRollback bool) (int64, error) {
 	var err error
+	taskStatus := types.TaskStatusRunning
+	if isRollback {
+		taskStatus = types.TaskStatusRollingBack
+	}
 	newTask := &db.Task{
 		SchedTmplId: schedTmplId,
 		Operator:    operator,
 		ExecType:    execType,
 		InstCnt:     instCnt,
-		TaskStatus:  types.TaskStatusRunning,
+		TaskStatus:  taskStatus,
 		TaskStep:    types.TaskStepInit,
 		BeginAt:     time.Now(),
+	}
+	if taskInfo != "" {
+		newTask.TaskInfo = taskInfo
 	}
 	if err = db.Create(newTask, nil); err != nil {
 		log.Logger.Error(err)

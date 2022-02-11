@@ -19,8 +19,8 @@ func TestAesDecrypt(t *testing.T) {
 		{
 			name: "T1",
 			args: args{
-				cryptedBase64: "xxx",
-				key:           []byte("xxx"),
+				cryptedBase64: "A2kamiRNYRWsXmPiVCDikw==",
+				key:           []byte("liubo@1687127005374380"),
 			},
 			want:    []byte("123456"),
 			wantErr: false,
@@ -29,6 +29,7 @@ func TestAesDecrypt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := AesDecrypt(tt.args.cryptedBase64, tt.args.key)
+			t.Logf("got:%v", string(got))
 			if (err != nil) != tt.wantErr {
 				t.Errorf("AesDecrypt() error = %v, wantErr %v", err, tt.wantErr)
 				return
