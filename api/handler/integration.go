@@ -14,11 +14,10 @@ type CreateIntegrationInfoReq struct {
 	Account  string `json:"account"`
 	Password string `json:"password"`
 	Type     string `json:"type"`
-	Operator string `json:"operator"`
 }
 
 type DeleteIntegrationReq struct {
-	Ids []int64 `json:"ids"`
+	Id int `json:"id"`
 }
 
 type ListIntegrationReq struct {
@@ -48,7 +47,7 @@ func (i *Integration) Delete(ctx *gin.Context) {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
 		return
 	}
-	err := repository.GetIntegrationInstance().Delete(ctx, req.Ids)
+	err := repository.GetIntegrationInstance().Delete(ctx, req.Id)
 	if err != nil {
 		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
 		return
@@ -66,17 +65,17 @@ func (i *Integration) List(ctx *gin.Context) {
 	pageNum, pageSize := parsePage(req.PageNum, req.PageSize)
 	res, total, err := repository.GetIntegrationInstance().List(ctx, req.Type, pageNum, pageSize)
 	if err != nil {
-		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), gin.H{
+			"integration_list": res,
+			"pager": Pager{
+				PageNumber: pageNum,
+				PageSize:   pageSize,
+				Total:      total,
+			},
+		})
 		return
 	}
-	MkResponse(ctx, http.StatusOK, errOK, gin.H{
-		"integration_list": res,
-		"pager": Pager{
-			PageNumber: pageNum,
-			PageSize:   pageSize,
-			Total:      total,
-		},
-	})
+	MkResponse(ctx, http.StatusOK, errOK, nil)
 	return
 }
 

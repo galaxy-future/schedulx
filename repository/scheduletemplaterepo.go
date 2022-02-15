@@ -325,16 +325,27 @@ func (r *ScheduleTemplateRepo) GetDeployTemplateList(ctx context.Context, servic
 
 	list = make([]DeployTemplate, len(templateModel))
 	for index, item := range templateModel {
+		tmplAttrs := &types.TmplAttrs{}
+		if item.TmplAttrs != "" {
+			_ = jsoniter.UnmarshalFromString(item.TmplAttrs, tmplAttrs)
+		}
 		list[index] = DeployTemplate{
 			TmplDeployName:     item.TmplName,
 			TmplDeployId:       item.Id,
 			InstClusterName:    item.BridgxClusname,
 			TmplDesc:           item.Description,
-			DeployMode:         item.DeployMode,
+			DeployMode:         getDeployMode(item.DeployMode, tmplAttrs),
 			DeployResourceType: getResourceType(item.DeployMode),
 		}
 	}
 	return list, count, nil
+}
+
+func getDeployMode(deployMode string, attrs *types.TmplAttrs) string {
+	if attrs != nil && attrs.RepoType == constant.Zadig {
+		return constant.CICD
+	}
+	return deployMode
 }
 
 func getResourceType(deployMode string) string {
