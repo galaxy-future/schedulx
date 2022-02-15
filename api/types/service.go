@@ -6,4 +6,5 @@ type ServiceInfo struct {
 	Language    string `json:"language"`
 	Domain      string `json:"domain"`
 	Port        string `json:"port"`
+	GitRepo     string `json:"git_repo"`
 }

@@ -259,7 +259,7 @@ func (r *ServiceRepo) GetServiceDetail(ctx context.Context, serviceName string) 
 	return detailInfo, nil
 }
 
-func (r *ServiceRepo) Update(ctx context.Context, serviceName, description, domain, port string) (int64, error) {
+func (r *ServiceRepo) Update(ctx context.Context, serviceName, description, domain, port, gitRepo string) (int64, error) {
 	var err error
 	serviceModel := db.Service{}
 	where := map[string]interface{}{
@@ -273,6 +273,9 @@ func (r *ServiceRepo) Update(ctx context.Context, serviceName, description, doma
 	}
 	if port != "" {
 		fields["port"] = port
+	}
+	if gitRepo != "" {
+		fields["git_repo"] = gitRepo
 	}
 	records, err := db.Updates(&serviceModel, where, fields, nil)
 	if err != nil {
