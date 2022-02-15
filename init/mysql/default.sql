@@ -108,15 +108,16 @@ DROP TABLE IF EXISTS `service`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `service`
 (
-    `id`           bigint(20)  NOT NULL AUTO_INCREMENT,
-    `service_name` varchar(32) NOT NULL COMMENT '服务名字(全局唯一)',
-    `description`  varchar(32) NOT NULL COMMENT '服务描述',
-    `language`     varchar(16) NOT NULL COMMENT '服务类型 java,php,golang nginx',
-    `domain`       varchar(64) NOT NULL COMMENT '服务域名',
-    `port`         varchar(8)  NOT NULL COMMENT '服务端口',
-    `is_deleted`   tinyint(4)  NOT NULL DEFAULT '0' COMMENT '是否被删除 0 否, 1 是',
-    `create_at`    timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `update_at`    timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `id`           bigint(20)   NOT NULL AUTO_INCREMENT,
+    `service_name` varchar(32)  NOT NULL COMMENT '服务名字(全局唯一)',
+    `description`  varchar(32)  NOT NULL COMMENT '服务描述',
+    `language`     varchar(16)  NOT NULL COMMENT '服务类型 java,php,golang nginx',
+    `domain`       varchar(64)  NOT NULL COMMENT '服务域名',
+    `port`         varchar(8)   NOT NULL COMMENT '服务端口',
+    `git_repo`     varchar(256) NOT NULL COMMENT 'Git仓库',
+    `is_deleted`   tinyint(4)   NOT NULL DEFAULT '0' COMMENT '是否被删除 0 否, 1 是',
+    `create_at`    timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_at`    timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `server_name` (`service_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务信息表';

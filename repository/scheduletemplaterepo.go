@@ -325,23 +325,34 @@ func (r *ScheduleTemplateRepo) GetDeployTemplateList(ctx context.Context, servic
 
 	list = make([]DeployTemplate, len(templateModel))
 	for index, item := range templateModel {
+		tmplAttrs := &types.TmplAttrs{}
+		if item.TmplAttrs != "" {
+			_ = jsoniter.UnmarshalFromString(item.TmplAttrs, tmplAttrs)
+		}
 		list[index] = DeployTemplate{
 			TmplDeployName:     item.TmplName,
 			TmplDeployId:       item.Id,
 			InstClusterName:    item.BridgxClusname,
 			TmplDesc:           item.Description,
-			DeployMode:         item.DeployMode,
+			DeployMode:         getDeployMode(item.DeployMode, tmplAttrs),
 			DeployResourceType: getResourceType(item.DeployMode),
 		}
 	}
 	return list, count, nil
 }
 
-func getResourceType(deployMode string) string {
-	if deployMode == "k8s" {
-		return "instance_group"
+func getDeployMode(deployMode string, attrs *types.TmplAttrs) string {
+	if attrs != nil && attrs.RepoType == constant.Zadig {
+		return constant.CICD
 	}
-	return "cluster"
+	return deployMode
+}
+
+func getResourceType(deployMode string) string {
+	if deployMode == constant.Kubernetes {
+		return constant.InstanceGroup
+	}
+	return constant.Cluster
 }
 
 // Delete 删除扩缩容模板以及关联集群

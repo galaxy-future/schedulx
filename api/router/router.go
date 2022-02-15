@@ -71,6 +71,13 @@ func Init() *gin.Engine {
 			taskPath.GET("deploy/detail", h.GetDeployDetail)
 			taskPath.GET("instancelist", h.InstanceList)
 		}
+		integrationPath := v1Api.Group("schedulx/integration/")
+		{
+			h := &handler.Integration{}
+			integrationPath.GET("list", h.List)
+			integrationPath.POST("create", h.Create)
+			integrationPath.POST("delete", h.Delete)
+		}
 	}
 	return router
 }
