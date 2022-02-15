@@ -2,10 +2,13 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
+	"github.com/galaxy-future/schedulx/register/config/log"
 	"github.com/galaxy-future/schedulx/repository"
+	"gorm.io/gorm"
 )
 
 type InstanceService struct {
@@ -66,4 +69,38 @@ func (s *InstanceService) InstanceCountByCluster(ctx context.Context, serviceNam
 	}
 
 	return &InstanceCountResp{instanceCount}, nil
+}
+
+type GetServiceByIpResponse struct {
+	ServiceName string `json:"service_name"`
+	ClusterName string `json:"cluster_name"`
+}
+
+func (s *InstanceService) GetServiceByIp(ctx context.Context, ip string) (*GetServiceByIpResponse, error) {
+	ins, err := repository.GetInstanceRepoIns().GetInstanceByIpInner(ctx, ip)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("there isn't any instance using this ip")
+		}
+		log.Logger.Errorf("GetInstanceByIpInner:%v error:%v", ip, err)
+		return nil, err
+	}
+	if ins.Id == 0 {
+		return nil, errors.New("there isn't any instance using this ip")
+	}
+	svcRepo := repository.GetServiceRepoInst()
+	cluster, err := svcRepo.GetServiceCluster(ctx, ins.ServiceClusterId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("there isn't any cluster using this ip")
+		}
+		return nil, err
+	}
+	if cluster == nil {
+		return nil, nil
+	}
+	return &GetServiceByIpResponse{
+		ServiceName: cluster.ServiceName,
+		ClusterName: cluster.ClusterName,
+	}, nil
 }
