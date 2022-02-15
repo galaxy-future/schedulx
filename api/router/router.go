@@ -1,9 +1,8 @@
 package router
 
 import (
-	"net/http"
-
 	"github.com/galaxy-future/schedulx/api/middleware/authorization"
+	"net/http"
 
 	"github.com/galaxy-future/schedulx/api/handler"
 	"github.com/galaxy-future/schedulx/register/config"
@@ -47,6 +46,7 @@ func Init() *gin.Engine {
 		{
 			h := &handler.Instance{}
 			instancePath.GET("count", h.Count)
+			instancePath.GET("service", h.InstanceServiceByIp)
 		}
 
 		tmplExpandPath := v1Api.Group("schedulx/template/expand/")
