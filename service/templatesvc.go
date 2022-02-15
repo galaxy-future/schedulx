@@ -282,6 +282,7 @@ func (s *TemplateSvc) serviceBindBridgxCluster(svcReq *TmplExpandSvcReq, dbo *go
 	}
 
 	if err := db.UpdatesByIds(serviceCluster, []int64{serviceClusterId}, map[string]interface{}{
+		"resource_id":    svcReq.TmplInfo.ResourceId,
 		"bridgx_cluster": svcReq.TmplInfo.BridgxClusname,
 	}, dbo); err != nil {
 		log.Logger.Errorf("db tabel:%v error:%v", serviceCluster.TableName(), err)
@@ -577,10 +578,28 @@ func (s *TemplateSvc) InfoAction(ctx context.Context, svcReq *TmplInfoSvcReq) (*
 	svcResp := &TmplInfoSvcResp{}
 	tmplRepo := repository.GetScheduleTemplateRepoInst()
 	tmpl, err := tmplRepo.GetSchedTmpl(svcReq.TmplExpandId)
+	if err != nil {
+		return nil, err
+	}
+	serviceCluster, err := repository.GetServiceRepoInst().GetServiceCluster(ctx, tmpl.ServiceClusterId)
+	if err != nil {
+		return nil, err
+	}
+	runningEnv := &types.RunningEnv{}
+	if serviceCluster.ResourceId > 0 {
+		runningEnv, err = getRunningEnvByRes(serviceCluster.ResourceId)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	templInfo := &types.TmpInfo{
 		TmplName:         tmpl.TmplName,
 		ServiceClusterId: tmpl.ServiceClusterId,
 		Describe:         tmpl.Description,
+		RunningEnvId:     runningEnv.Id,
+		RunningEnvName:   runningEnv.Name,
+		ResourceId:       serviceCluster.ResourceId,
 		BridgxClusname:   tmpl.BridgxClusname,
 		DeployMode:       tmpl.DeployMode,
 	}

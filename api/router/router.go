@@ -45,6 +45,15 @@ func Init() *gin.Engine {
 			servicePath.POST("create", h.Create)
 			servicePath.GET("zadig/workflow/list", h.GetWorkflows)
 			servicePath.GET("zadig/artifact/list", h.GetWorkflowTasks)
+
+			servicePath.GET(":id/running_env", h.GetRunningEnv)
+		}
+		envPath := v1Api.Group("schedulx/running_env/")
+		{
+			envPath.POST("create", handler.CreateRunningEnv)
+			envPath.DELETE(":ids", handler.DeleteRunningEnv)
+			envPath.POST("update", handler.UpdateRunningEnv)
+			envPath.GET(":id", handler.GetRunningEnv)
 		}
 		instancePath := v1Api.Group("schedulx/instance/")
 		{

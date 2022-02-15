@@ -123,6 +123,36 @@ CREATE TABLE `service`
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务信息表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
+DROP TABLE IF EXISTS `running_env`;
+CREATE TABLE `running_env`
+(
+    `id`             bigint(20)  NOT NULL AUTO_INCREMENT,
+    `service_id`     bigint(20)  NOT NULL,
+    `name`           varchar(32) NOT NULL comment '运行环境名',
+    `type`           varchar(16) NOT NULL DEFAULT '' comment '运行环境类型',
+    `domain`         varchar(256) NOT NULL DEFAULT '',
+    `port`           int NOT NULL DEFAULT 0,
+    `health_check`   varchar(1024) NOT NULL DEFAULT '{}',
+    `create_at`      timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_at`      timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uniq_service_id_name` (`service_id`,`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务运行环境表';
+
+DROP TABLE IF EXISTS `computing_resource`;
+CREATE TABLE `computing_resource`
+(
+    `id`             bigint(20)  NOT NULL AUTO_INCREMENT,
+    `env_id`         bigint(20)  NOT NULL,
+    `computing_type` varchar(16) NOT NULL comment '算力类型',
+    `cluster_id`     bigint(20)  NOT NULL comment '算力集群id',
+    `cluster_name`   varchar(64) NOT NULL,
+    `create_at`      timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_at`      timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uniq_env_id_type_cluster_id` (`env_id`,`computing_type`,`cluster_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 --
 -- Table structure for table `service_cluster`
 --
@@ -134,6 +164,7 @@ CREATE TABLE `service_cluster`
 (
     `id`             bigint(20)  NOT NULL AUTO_INCREMENT,
     `service_name`   varchar(32) NOT NULL COMMENT '所属服务',
+    `resource_id`    bigint(20)  NOT NULL DEFAULT 0,
     `cluster_name`   varchar(32) NOT NULL COMMENT '服务集群名称',
     `bridgx_cluster` varchar(32) NOT NULL DEFAULT '' comment 'bridgx集群名称',
     `auto_decision`  varchar(3)  NOT NULL DEFAULT 'off' COMMENT '是否开启自动扩缩容决策 on | off',

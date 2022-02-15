@@ -5,6 +5,7 @@ import "time"
 type ServiceCluster struct {
 	Id            int64      `gorm:"primaryKey;column:id" json:"id"`
 	ServiceName   string     `gorm:"column:service_name" json:"service_name"`
+	ResourceId    int64      `gorm:"column:resource_id" json:"resource_id"`
 	ClusterName   string     `gorm:"column:cluster_name" json:"cluster_name"`
 	BridgxCluster string     `gorm:"bridgx_cluster" json:"bridgx_cluster"`
 	AutoDecision  string     `gorm:"column:auto_decision" json:"auto_decision"`

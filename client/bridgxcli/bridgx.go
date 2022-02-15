@@ -90,6 +90,15 @@ type GetClusterByNameResp struct {
 	Data *bridgx.ClusterInfo `json:"data"`
 }
 
+type GetClusterByIdReq struct {
+	ClusterId int64
+}
+
+type GetClusterByIdResp struct {
+	client.HttpResp
+	Data *bridgx.ClusterInfo `json:"data"`
+}
+
 type ClusterInstanceStatResp struct {
 	client.HttpResp
 	Data *bridgx.ClusterInstanceStat `json:"data"`
@@ -315,6 +324,25 @@ func (c *BridgXClient) GetClusterByName(ctx context.Context, cliReq *GetClusterB
 	if resp.Code != http.StatusOK {
 		err = fmt.Errorf("http code:%v | msg:%v", resp.Code, resp.Msg)
 		log.Logger.Error(err)
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *BridgXClient) GetClusterById(ctx context.Context, cliReq *GetClusterByIdReq) (resp *GetClusterByIdResp, err error) {
+	resp = &GetClusterByIdResp{}
+	if cliReq.ClusterId == 0 {
+		err = client.ErrParamsMissing
+		return nil, err
+	}
+	url := tool.StrAppend(c.genUrl(clusterGetByIdUrl), "/", cast.ToString(cliReq.ClusterId))
+	authToken := cast.ToString(ctx.Value(config.GlobalConfig.JwtToken.BindContextKeyName))
+	_, err = c.httpClient.R().SetResult(resp).SetError(resp).SetAuthToken(authToken).Get(url)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Code != http.StatusOK {
+		err = fmt.Errorf("http code:%v, msg:%v", resp.Code, resp.Msg)
 		return nil, err
 	}
 	return resp, nil

@@ -1,14 +1,23 @@
 package db
 
 import (
+	"time"
+
 	"github.com/galaxy-future/schedulx/register/config/client"
 	"github.com/galaxy-future/schedulx/register/config/log"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
 	BatchSize = 5
 )
+
+type Base struct {
+	Id       int64      `json:"id" gorm:"primary_key"`
+	CreateAt *time.Time `json:"-"` // 加 * 是为类触 mysql NOT NULL DEFAULT CURRENT_TIMESTAMP 属性
+	UpdateAt *time.Time `json:"-"`
+}
 
 // Create insert the value into database
 func Create(model interface{}, db *gorm.DB) error {
@@ -17,6 +26,17 @@ func Create(model interface{}, db *gorm.DB) error {
 	}
 	err := db.Debug().Create(model).Error
 	if err != nil {
+		emitDbErrorMetrics("create data to write db", err)
+		return err
+	}
+	return nil
+}
+
+func CreateIgnoreDuplicate(model interface{}, db *gorm.DB) error {
+	if db == nil {
+		db = client.WriteDBCli
+	}
+	if err := db.Clauses(clause.OnConflict{DoNothing: true}).Create(model).Error; err != nil {
 		emitDbErrorMetrics("create data to write db", err)
 		return err
 	}

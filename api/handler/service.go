@@ -12,6 +12,7 @@ import (
 	"github.com/galaxy-future/schedulx/client/bridgxcli"
 
 	"github.com/galaxy-future/schedulx/api/types"
+	"github.com/galaxy-future/schedulx/client/bridgxcli"
 	"github.com/galaxy-future/schedulx/register/config/log"
 	"github.com/galaxy-future/schedulx/register/constant"
 	"github.com/galaxy-future/schedulx/repository"
@@ -485,5 +486,17 @@ func (h *Service) GetWorkflowTasks(ctx *gin.Context) {
 			Total:     total,
 		},
 	})
+	return
+}
+
+func (h *Service) GetRunningEnv(ctx *gin.Context) {
+	serviceId := ctx.Param("id")
+	res, err := service.GetServiceIns().GetRunningEnvByService(cast.ToInt64(serviceId))
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+
+	MkResponse(ctx, http.StatusOK, errOK, res)
 	return
 }

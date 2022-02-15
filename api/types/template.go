@@ -18,6 +18,9 @@ type TmpInfo struct {
 	TmplName         string `json:"tmpl_name"`
 	ServiceClusterId int64  `json:"service_cluster_id"`
 	Describe         string `json:"describe"`
+	RunningEnvId     int64  `json:"running_env_id"`
+	RunningEnvName   string `json:"running_env_name"`
+	ResourceId       int64  `json:"computing_resource_id"`
 	BridgxClusname   string `json:"bridgx_clusname"`
 	DeployMode       string `json:"deploy_mode"`
 }

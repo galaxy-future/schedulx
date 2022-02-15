@@ -57,6 +57,8 @@ type ChargeConfig struct {
 }
 
 type ClusterInfo struct {
+	Id           int64         `json:"id"`
+	Name         string        `json:"name"`
 	InstanceType string        `json:"instance_type"`
 	Pwd          string        `json:"password"`
 	UserName     string        `json:"username"`
