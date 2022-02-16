@@ -186,6 +186,7 @@ CREATE TABLE `integration`
     PRIMARY KEY (`id`),
     KEY `integration_type_index` (`type`)
 ) ENGINE = InnoDB
+  AUTO_INCREMENT = 6
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_bin;
 
