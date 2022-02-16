@@ -66,17 +66,17 @@ func (i *Integration) List(ctx *gin.Context) {
 	pageNum, pageSize := parsePage(req.PageNum, req.PageSize)
 	res, total, err := repository.GetIntegrationInstance().List(ctx, req.Type, pageNum, pageSize)
 	if err != nil {
-		MkResponse(ctx, http.StatusInternalServerError, err.Error(), gin.H{
-			"integration_list": res,
-			"pager": Pager{
-				PageNumber: pageNum,
-				PageSize:   pageSize,
-				Total:      total,
-			},
-		})
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
-	MkResponse(ctx, http.StatusOK, errOK, nil)
+	MkResponse(ctx, http.StatusOK, errOK, gin.H{
+		"integration_list": res,
+		"pager": Pager{
+			PageNumber: pageNum,
+			PageSize:   pageSize,
+			Total:      total,
+		},
+	})
 	return
 }
 
