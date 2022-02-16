@@ -42,6 +42,8 @@ func Init() *gin.Engine {
 			servicePath.GET("breathrecord", h.BreathRecord)
 			servicePath.POST("update", h.Update)
 			servicePath.POST("create", h.Create)
+			servicePath.GET("zadig/workflow/list", h.GetWorkflows)
+			servicePath.GET("zadig/artifact/list", h.GetWorkflowTasks)
 		}
 		instancePath := v1Api.Group("schedulx/instance/")
 		{
