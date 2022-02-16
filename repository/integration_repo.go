@@ -3,23 +3,74 @@ package repository
 import (
 	"context"
 	"sync"
+	"time"
 
+	"github.com/galaxy-future/schedulx/api/types"
+	"github.com/galaxy-future/schedulx/pkg/tool"
 	"github.com/galaxy-future/schedulx/repository/model/db"
+	"gorm.io/gorm"
 )
 
 type IntegrationRepo struct {
 }
 
-func (r *IntegrationRepo) Create(ctx context.Context, host string, account string, password string, _type string) error {
-	return nil
+func (r IntegrationRepo) GetOneByType(ctx context.Context, _type string) (*types.Integration, error) {
+	ret := &db.Integration{}
+	err := db.QueryLast(map[string]interface{}{
+		"type": _type,
+	}, ret)
+	if err != nil {
+		return nil, err
+	}
+	if ret == nil || ret.Id == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	decryptPassword, err := tool.AesDecrypt(ret.Password, []byte(ret.Account))
+	if err != nil {
+		return nil, err
+	}
+	return &types.Integration{
+		Host:     ret.Host,
+		Account:  ret.Account,
+		Password: string(decryptPassword),
+		Type:     _type,
+		CreateAt: ret.CreateAt,
+		CreateBy: ret.CreateBy,
+	}, nil
 }
 
-func (r *IntegrationRepo) Delete(ctx context.Context, id int) error {
-	return nil
+func (r *IntegrationRepo) Create(ctx context.Context, host, account, password, _type, operator string) error {
+	now := time.Now()
+	encryptPassword, err := tool.AesEncrypt([]byte(password), []byte(account))
+	if err != nil {
+		return err
+	}
+	integration := &db.Integration{
+		Host:     host,
+		Account:  account,
+		Password: encryptPassword,
+		Type:     _type,
+		CreateAt: &now,
+		UpdateAt: &now,
+		CreateBy: operator,
+		UpdateBy: operator,
+	}
+	return db.Create(integration, nil)
 }
 
-func (r *IntegrationRepo) List(ctx context.Context, _type string, num int, size int) ([]db.Integration, int, error) {
-	return nil, 0, nil
+func (r *IntegrationRepo) Delete(ctx context.Context, id int64) error {
+	return db.Delete(&db.Integration{Id: id}, nil)
+}
+
+func (r *IntegrationRepo) List(ctx context.Context, _type string, page int, pageSize int) ([]db.Integration, int, error) {
+	res := make([]db.Integration, 0)
+	total, err := db.Query(map[string]interface{}{
+		"type": _type,
+	}, page, pageSize, &res, "", nil, true)
+	if err != nil {
+		return nil, 0, err
+	}
+	return res, int(total), nil
 }
 
 var integrationInstance *IntegrationRepo
