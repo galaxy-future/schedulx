@@ -1,5 +1,13 @@
 # **SchedulX**
 
+Language
+----
+
+English | [中文](https://github.com/galaxy-future/schedulx/blob/master/docs/CH-README.md)
+
+Introduction
+-----
+
 SchedulX is a cloud-native service orchestration and deployment solution based on the open-source BridgX project, with the goal of enabling developers to orchestrate and deploy services on computing resources obtained from BridgX.
 It has the following key features:
 1. Able to combine dynamic scale-up and scale-down characteristics for service deployment;

@@ -6,7 +6,7 @@ LogLevel: info
 WriteDB:
   Name: schedulx
   Host: 127.0.0.1
-  Port: 3316
+  Port: 3306
   User: gf
   Password: db@galaxy-future.com
   Timeout: 50ms
@@ -17,7 +17,7 @@ WriteDB:
 ReadDB:
   Name: schedulx
   Host: 127.0.0.1
-  Port: 3316
+  Port: 3306
   User: gf
   Password: db@galaxy-future.com
   Timeout: 50ms
