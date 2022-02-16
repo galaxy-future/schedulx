@@ -342,7 +342,7 @@ func (r *ScheduleTemplateRepo) GetDeployTemplateList(ctx context.Context, servic
 }
 
 func getDeployMode(deployMode string, attrs *types.TmplAttrs) string {
-	if attrs != nil && attrs.RepoType == constant.Zadig {
+	if attrs != nil && strings.ToLower(attrs.RepoType) == constant.Zadig {
 		return constant.CICD
 	}
 	return deployMode
