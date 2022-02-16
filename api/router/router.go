@@ -1,8 +1,9 @@
 package router
 
 import (
-	"github.com/galaxy-future/schedulx/api/middleware/authorization"
 	"net/http"
+
+	"github.com/galaxy-future/schedulx/api/middleware/authorization"
 
 	"github.com/galaxy-future/schedulx/api/handler"
 	"github.com/galaxy-future/schedulx/register/config"
