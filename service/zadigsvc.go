@@ -15,7 +15,7 @@ var (
 )
 
 func GetZadigSvcInst() *ZadigSvc {
-	envOnce.Do(func() {
+	zadigSvcOnce.Do(func() {
 		zadigSvc = &ZadigSvc{}
 	})
 	return zadigSvc
