@@ -18,7 +18,7 @@ type CreateIntegrationInfoReq struct {
 }
 
 type DeleteIntegrationReq struct {
-	Id int64 `json:"id"`
+	Ids []int64 `json:"ids"`
 }
 
 type ListIntegrationReq struct {
@@ -48,7 +48,7 @@ func (i *Integration) Delete(ctx *gin.Context) {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
 		return
 	}
-	err := repository.GetIntegrationInstance().Delete(ctx, req.Id)
+	err := repository.GetIntegrationInstance().Delete(ctx, req.Ids)
 	if err != nil {
 		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
 		return
