@@ -2,9 +2,8 @@ package service
 
 import (
 	"context"
-	"sync"
-
 	"github.com/galaxy-future/schedulx/client/zadigcli"
+	"sync"
 )
 
 type ZadigSvc struct {
@@ -16,7 +15,7 @@ var (
 )
 
 func GetZadigSvcInst() *ZadigSvc {
-	zadigSvcOnce.Do(func() {
+	envOnce.Do(func() {
 		zadigSvc = &ZadigSvc{}
 	})
 	return zadigSvc

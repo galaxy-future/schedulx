@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"sync"
-	"time"
-
 	"github.com/galaxy-future/schedulx/register/config/log"
 	"github.com/go-resty/resty/v2"
 	"github.com/tidwall/gjson"
+	"net/http"
+	"sync"
+	"time"
 )
 
 type ZadigClient struct {
@@ -117,19 +116,19 @@ func (c *ZadigClient) GetWorkflowTasks(ctx context.Context, cliReq WorkflowTasks
 		return 0, nil, errors.New(rr.RawResponse.Status)
 	}
 	log.Logger.Infof("url:%s, body:%s", url, rr.Body())
-	if cliReq.FileType == fileTypeFile {
+	if cliReq.FileType == "file" {
 		domain, err := c.getS3StorageDomain(cliReq.ZadigHost, cliReq.ZadigToken)
 		if err != nil {
 			return 0, nil, err
 		}
 		for _, task := range originalResp.Data {
 			for _, stage := range task.Stages {
-				if stage.Type == taskDistributeToS3 {
+				if stage.Type == "distribute2kodo" {
 					subTaskByte, _ := json.Marshal(stage.SubTasks)
 					remoteFileKey := gjson.Get(string(subTaskByte), task.BuildServices[0]+".remote_file_key")
 					resp = append(resp, &WorkflowTaskResp{
 						TaskId:    task.TaskId,
-						ImageName: domain + remoteFileKey.Str,
+						ImageName: domain + remoteFileKey.Raw,
 					})
 				}
 			}
@@ -137,12 +136,12 @@ func (c *ZadigClient) GetWorkflowTasks(ctx context.Context, cliReq WorkflowTasks
 	} else {
 		for _, task := range originalResp.Data {
 			for _, stage := range task.Stages {
-				if stage.Type == taskBuild {
+				if stage.Type == "buildv2" {
 					subTaskByte, _ := json.Marshal(stage.SubTasks)
 					imageName := gjson.Get(string(subTaskByte), task.BuildServices[0]+".docker_build_status.image_name")
 					resp = append(resp, &WorkflowTaskResp{
 						TaskId:    task.TaskId,
-						ImageName: imageName.Str,
+						ImageName: imageName.Raw,
 					})
 				}
 			}
