@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
+	jsoniter "github.com/json-iterator/go"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -244,10 +244,10 @@ func (s *EnvService) ExecCmdWithUpdateInstanceStatus(ctx context.Context, taskId
 			log.Logger.Errorf("%s", debug.Stack())
 			err = config.ErrSysPanic
 		}
-		msg := ""
-		if err != nil {
-			msg = err.Error()
-		}
+		msg, _ := jsoniter.MarshalToString(map[string]interface{}{
+			"outs": string(outs),
+			"err":  err,
+		})
 		_ = s.CallBackSvc(ctx, taskId, inst.InstanceId, instanceStatus, msg)
 	}()
 	if cmd == "" {
@@ -256,7 +256,6 @@ func (s *EnvService) ExecCmdWithUpdateInstanceStatus(ctx context.Context, taskId
 	outs, err = RemoteCmdExec(ctx, cmd, _remoteBaseEnvScript, inst.IpInner, auth.UserName, auth.Pwd)
 	if err != nil {
 		instanceStatus = types.InstanceStatusFail
-		err = fmt.Errorf("error:%v, outs:%v", err, string(outs))
 		return err
 	}
 	return nil
