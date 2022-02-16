@@ -117,14 +117,14 @@ func (c *ZadigClient) GetWorkflowTasks(ctx context.Context, cliReq WorkflowTasks
 		return 0, nil, errors.New(rr.RawResponse.Status)
 	}
 	log.Logger.Infof("url:%s, body:%s", url, rr.Body())
-	if cliReq.FileType == "file" {
+	if cliReq.FileType == fileTypeFile {
 		domain, err := c.getS3StorageDomain(cliReq.ZadigHost, cliReq.ZadigToken)
 		if err != nil {
 			return 0, nil, err
 		}
 		for _, task := range originalResp.Data {
 			for _, stage := range task.Stages {
-				if stage.Type == "distribute2kodo" {
+				if stage.Type == taskDistributeToS3 {
 					subTaskByte, _ := json.Marshal(stage.SubTasks)
 					remoteFileKey := gjson.Get(string(subTaskByte), task.BuildServices[0]+".remote_file_key")
 					resp = append(resp, &WorkflowTaskResp{
@@ -137,7 +137,7 @@ func (c *ZadigClient) GetWorkflowTasks(ctx context.Context, cliReq WorkflowTasks
 	} else {
 		for _, task := range originalResp.Data {
 			for _, stage := range task.Stages {
-				if stage.Type == "buildv2" {
+				if stage.Type == taskBuild {
 					subTaskByte, _ := json.Marshal(stage.SubTasks)
 					imageName := gjson.Get(string(subTaskByte), task.BuildServices[0]+".docker_build_status.image_name")
 					resp = append(resp, &WorkflowTaskResp{
