@@ -25,6 +25,7 @@ type ServiceListLogic struct {
 	ServiceName        string `json:"service_name"`
 	Domain             string `json:"domain"`
 	Port               string `json:"port"`
+	GitRepo            string `json:"git_repo"`
 	ClusterNum         int    `json:"cluster_num"`
 	Language           string `json:"language"`
 	ImageUrl           string `json:"image_url"`
@@ -41,6 +42,9 @@ type ServiceListLogic struct {
 // ServiceDetailLogic 服务详情数据
 type ServiceDetailLogic struct {
 	ServiceName        string `json:"service_name"`
+	Domain             string `json:"domain"`
+	Port               string `json:"port"`
+	GitRepo            string `json:"git_repo"`
 	ServiceClusterId   int64  `json:"service_cluster_id"`
 	ServiceClusterName string `json:"service_cluster_name"`
 	Description        string `json:"description"`
@@ -114,7 +118,7 @@ func (r *ServiceRepo) GetServiceList(ctx context.Context, page, pageSize int, se
 		where["language"] = lang
 	}
 	// 1.查询service 表
-	count, err := db.Query(where, page, pageSize, &model, "id desc", []string{"id", "service_name", "description", "language"}, true)
+	count, err := db.Query(where, page, pageSize, &model, "id desc", nil, true)
 	if err != nil {
 		log.Logger.Errorf("db.Query error:%v", err)
 		return nil, 0, err
@@ -203,6 +207,7 @@ func (r *ServiceRepo) GetServiceList(ctx context.Context, page, pageSize int, se
 			ServiceClusterName: modelCluster.ClusterName,
 			Domain:             item.Domain,
 			Port:               item.Port,
+			GitRepo:            item.GitRepo,
 			AutoDecision:       modelCluster.AutoDecision,
 			TmplExpandId:       modelTempLate.Id,
 			TmplExpandName:     modelTempLate.TmplName,
@@ -256,6 +261,9 @@ func (r *ServiceRepo) GetServiceDetail(ctx context.Context, serviceName string) 
 	}
 	detailInfo.Description = serviceModel.Description
 	detailInfo.ServiceName = serviceModel.ServiceName
+	detailInfo.Domain = serviceModel.Domain
+	detailInfo.Port = serviceModel.Port
+	detailInfo.GitRepo = serviceModel.GitRepo
 	return detailInfo, nil
 }
 

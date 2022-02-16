@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/galaxy-future/schedulx/register/config/client"
+
 	"github.com/galaxy-future/schedulx/api/types"
 	"github.com/galaxy-future/schedulx/pkg/tool"
 	"github.com/galaxy-future/schedulx/repository/model/db"
@@ -58,8 +60,17 @@ func (r *IntegrationRepo) Create(ctx context.Context, host, account, password, _
 	return db.Create(integration, nil)
 }
 
-func (r *IntegrationRepo) Delete(ctx context.Context, id int64) error {
-	return db.Delete(&db.Integration{Id: id}, nil)
+func (r *IntegrationRepo) Delete(ctx context.Context, ids []int64) error {
+	return client.WriteDBCli.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, id := range ids {
+			m := &db.Integration{Id: id}
+			err := tx.Delete(m).Error
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (r *IntegrationRepo) List(ctx context.Context, _type string, page int, pageSize int) ([]db.Integration, int, error) {
