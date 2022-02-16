@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
-	"github.com/galaxy-future/schedulx/client/zadigcli"
 	"sync"
+
+	"github.com/galaxy-future/schedulx/client/zadigcli"
 )
 
 type ZadigSvc struct {

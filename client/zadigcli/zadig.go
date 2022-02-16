@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/galaxy-future/schedulx/register/config/log"
-	"github.com/go-resty/resty/v2"
-	"github.com/tidwall/gjson"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/galaxy-future/schedulx/register/config/log"
+	"github.com/go-resty/resty/v2"
+	"github.com/tidwall/gjson"
 )
 
 type ZadigClient struct {
