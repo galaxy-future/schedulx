@@ -14,10 +14,11 @@ type CreateIntegrationInfoReq struct {
 	Account  string `json:"account"`
 	Password string `json:"password"`
 	Type     string `json:"type"`
+	Operator string `json:"operator"`
 }
 
 type DeleteIntegrationReq struct {
-	Id int `json:"id"`
+	Id int64 `json:"id"`
 }
 
 type ListIntegrationReq struct {
@@ -32,7 +33,7 @@ func (i *Integration) Create(ctx *gin.Context) {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
 		return
 	}
-	err := repository.GetIntegrationInstance().Create(ctx, req.Host, req.Account, req.Password, req.Type)
+	err := repository.GetIntegrationInstance().Create(ctx, req.Host, req.Account, req.Password, req.Type, req.Operator)
 	if err != nil {
 		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
 		return

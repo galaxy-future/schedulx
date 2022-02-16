@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/galaxy-future/schedulx/repository"
-
 	"github.com/galaxy-future/schedulx/register/config"
 	"github.com/galaxy-future/schedulx/register/config/client"
 	"github.com/galaxy-future/schedulx/register/config/log"
@@ -40,9 +38,4 @@ func Test_generateZadigToken(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestDelete(t *testing.T) {
-	InitTest()
-	_ = repository.GetIntegrationInstance().Delete(context.Background(), []int64{4, 5})
 }

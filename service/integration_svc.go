@@ -50,12 +50,9 @@ func (s *IntegrationService) GetZadigToken() string {
 }
 
 func refreshZadigToken() {
-	for {
-		select {
-		case <-time.After(5 * time.Minute):
-			generateZadigToken()
-		}
-	}
+	time.AfterFunc(5*time.Minute, func() {
+		generateZadigToken()
+	})
 }
 
 func generateZadigToken() string {

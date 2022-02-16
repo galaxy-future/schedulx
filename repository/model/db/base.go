@@ -24,16 +24,16 @@ func Create(model interface{}, db *gorm.DB) error {
 }
 
 // Delete delete
-func Delete(model interface{}, db *gorm.DB) (int64, error) {
+func Delete(model interface{}, db *gorm.DB) error {
 	if db == nil {
 		db = client.WriteDBCli
 	}
-	res := db.Debug().Where(model).Delete(model)
-	if res.Error != nil {
-		emitDbErrorMetrics("delete data", res.Error)
-		return 0, res.Error
+	err := db.Debug().Where(model).Delete(model).Error
+	if err != nil {
+		emitDbErrorMetrics("delete data", err)
+		return err
 	}
-	return res.RowsAffected, nil
+	return nil
 }
 
 func BatchCreate(values interface{}, db *gorm.DB) error {
