@@ -118,7 +118,7 @@ func (r *ServiceRepo) GetServiceList(ctx context.Context, page, pageSize int, se
 		where["language"] = lang
 	}
 	// 1.查询service 表
-	count, err := db.Query(where, page, pageSize, &model, "id desc", []string{"id", "service_name", "description", "language"}, true)
+	count, err := db.Query(where, page, pageSize, &model, "id desc", nil, true)
 	if err != nil {
 		log.Logger.Errorf("db.Query error:%v", err)
 		return nil, 0, err
