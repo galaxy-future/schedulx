@@ -170,3 +170,25 @@ CREATE TABLE `task`
     PRIMARY KEY (`id`),
     KEY                `idx_sched_tmpl_id` (`sched_tmpl_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='调度任务表';
+
+-- integration: table
+CREATE TABLE `integration`
+(
+    `id`        bigint(20)                       NOT NULL AUTO_INCREMENT,
+    `host`      varchar(256) COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+    `account`   varchar(64) COLLATE utf8mb4_bin  NOT NULL DEFAULT '',
+    `password`  varchar(512) COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+    `type`      varchar(32) COLLATE utf8mb4_bin  NOT NULL DEFAULT '',
+    `create_at` timestamp                        NULL     DEFAULT NULL,
+    `update_at` timestamp                        NULL     DEFAULT NULL,
+    `create_by` varchar(32) COLLATE utf8mb4_bin           DEFAULT NULL,
+    `update_by` varchar(32) COLLATE utf8mb4_bin           DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `integration_type_index` (`type`)
+) ENGINE = InnoDB
+  AUTO_INCREMENT = 6
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_bin;
+
+-- No native definition for element: integration_type_index (index)
+
