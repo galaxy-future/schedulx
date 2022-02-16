@@ -128,7 +128,7 @@ func (c *ZadigClient) GetWorkflowTasks(ctx context.Context, cliReq WorkflowTasks
 					remoteFileKey := gjson.Get(string(subTaskByte), task.BuildServices[0]+".remote_file_key")
 					resp = append(resp, &WorkflowTaskResp{
 						TaskId:    task.TaskId,
-						ImageName: domain + remoteFileKey.Raw,
+						ImageName: domain + remoteFileKey.Str,
 					})
 				}
 			}
@@ -141,7 +141,7 @@ func (c *ZadigClient) GetWorkflowTasks(ctx context.Context, cliReq WorkflowTasks
 					imageName := gjson.Get(string(subTaskByte), task.BuildServices[0]+".docker_build_status.image_name")
 					resp = append(resp, &WorkflowTaskResp{
 						TaskId:    task.TaskId,
-						ImageName: imageName.Raw,
+						ImageName: imageName.Str,
 					})
 				}
 			}
