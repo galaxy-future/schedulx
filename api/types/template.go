@@ -23,6 +23,7 @@ type TmpInfo struct {
 }
 
 type TmplAttrs struct {
+	RepoType     string `json:"repo_type"`
 	RepoPath     string `json:"repo_path"`
 	RepoUser     string `json:"repo_user"`
 	RepoPassword string `json:"repo_password"`

@@ -2,9 +2,10 @@ package handler
 
 import (
 	"fmt"
-	"github.com/galaxy-future/schedulx/client/bridgxcli"
 	"net/http"
 	"strconv"
+
+	"github.com/galaxy-future/schedulx/client/bridgxcli"
 
 	"github.com/galaxy-future/schedulx/api/types"
 	"github.com/galaxy-future/schedulx/register/config/log"
@@ -347,6 +348,7 @@ func (h *Service) Update(ctx *gin.Context) {
 			Description string `json:"description"`
 			Domain      string `json:"domain"`
 			Port        string `json:"port"`
+			GitRepo     string `json:"git_repo"`
 		} `json:"service_info"`
 	}{}
 	err = ctx.BindJSON(&params)
@@ -354,7 +356,7 @@ func (h *Service) Update(ctx *gin.Context) {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
 		return
 	}
-	ret, err := service.GetServiceIns().Update(ctx, params.ServiceInfo.ServiceName, params.ServiceInfo.Description, params.ServiceInfo.Domain, params.ServiceInfo.Port)
+	ret, err := service.GetServiceIns().Update(ctx, params.ServiceInfo.ServiceName, params.ServiceInfo.Description, params.ServiceInfo.Domain, params.ServiceInfo.Port, params.ServiceInfo.GitRepo)
 	if err != nil {
 		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
 		return

@@ -8,7 +8,7 @@ type ServiceInfo struct {
 }
 
 type Pager struct {
-	PageNumber int64 `json:"page_number"`
-	PageSize   int64 `json:"page_size"`
-	Total      int64 `json:"total"`
+	PageNumber int `json:"page_num"`
+	PageSize   int `json:"page_size"`
+	Total      int `json:"total"`
 }
