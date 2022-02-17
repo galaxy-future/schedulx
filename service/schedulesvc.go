@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/galaxy-future/schedulx/register/config"
 	"runtime/debug"
 	"sync"
-
-	"github.com/galaxy-future/schedulx/register/config"
 
 	"github.com/spf13/cast"
 
@@ -274,22 +273,45 @@ func (s *ScheduleSvc) deployAction(ctx context.Context, svcReq *ServiceDeploySvc
 	userName := ctx.Value(constant.CtxUserNameKey)
 	taskRepo := repository.TaskRepo{}
 	taskInfo, _ := jsoniter.MarshalToString(svcReq)
-	schedTaskId, err := taskRepo.CreateTask(ctx, tmpl.Id, svcReq.Count, cast.ToString(userName), svcReq.ExecType, taskInfo, svcReq.Rollback)
+	scheduleTaskId, err := taskRepo.CreateTask(ctx, tmpl.Id, svcReq.Count, cast.ToString(userName), svcReq.ExecType, taskInfo, svcReq.Rollback)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
 		if err != nil {
-			_ = taskRepo.UpdateTaskStatus(ctx, schedTaskId, types.TaskStatusFail, err.Error())
+			_ = taskRepo.UpdateTaskStatus(ctx, scheduleTaskId, types.TaskStatusFail, err.Error())
 			return
 		}
 	}()
-	// 获取指令集
-	var instrGroup []int64
-	err = jsoniter.Unmarshal([]byte(tmpl.InstrGroup), &instrGroup)
+
+	// TODO Danny Liu(幸程) Created in 17:42 of 2022/2/16 修改节点状态
+	// Create node states for every node in given task
+	// states, err := exec.createNodeStates(instance, poolNode)
+
+	deployInfo := &types.DeployInfo{}
+	err = jsoniter.UnmarshalFromString(tmpl.DeployMode, deployInfo)
 	if err != nil {
 		log.Logger.Error(err.Error())
-		err = errors.New("schedule_template.instr_group Unmarshal exception")
+		err = errors.New("schedule_template.deployInfo Unmarshal exception")
+		return nil, err
+	}
+
+	//max surge check
+	maxSurge := deployInfo.MaxSurge
+	if maxSurge < 0 || maxSurge > 100 {
+		log.Logger.Error(err.Error())
+		err = errors.New("max surge error")
+		return nil, err
+	}
+
+	stepLen := int(float64(svcReq.Count) * float64(maxSurge) / 100.0)
+	if deployInfo.MaxNum > stepLen {
+		stepLen = deployInfo.MaxNum
+	}
+
+	if stepLen == 0 {
+		log.Logger.Error(err.Error())
+		err = errors.New("deployment step length error")
 		return nil, err
 	}
 
@@ -297,36 +319,96 @@ func (s *ScheduleSvc) deployAction(ctx context.Context, svcReq *ServiceDeploySvc
 	instrSvcReq := &InstrSvcReq{
 		ServiceName:      tmpl.ServiceName,
 		ServiceClusterId: tmpl.ServiceClusterId,
-		ScheduleTaskId:   schedTaskId,
+		ScheduleTaskId:   scheduleTaskId,
 		NodeActSvcReq: &NodeActSvcReq{
-			TaskId:           schedTaskId,
+			TaskId:           scheduleTaskId,
 			ServiceClusterId: svcReq.ServiceClusterId,
 			DownloadFileUrl:  svcReq.DownloadFileUrl,
 			InstanceCount:    svcReq.Count,
 		},
 	}
-	go func() {
-		var asyncErr error
-		defer func() {
-			if r := recover(); r != nil {
-				log.Logger.Errorf("%s", debug.Stack())
-				asyncErr = config.ErrSysPanic
-			}
-			if asyncErr != nil {
-				_ = taskRepo.UpdateTaskStatus(ctx, schedTaskId, types.TaskStatusFail, asyncErr.Error())
-				return
-			}
-			_ = taskRepo.UpdateTaskStatus(ctx, schedTaskId, types.TaskStatusSuccess, "")
-		}()
-		for _, instrId := range instrGroup {
-			instrSvcReq.InstrId = instrId
-			if asyncErr = s.doInstr(ctx, instrSvcReq); asyncErr != nil {
-				log.Logger.Error("doInstr err: ", asyncErr)
-				break
-			}
+
+	baseEnvReq := &BaseEnvInitAsyncSvcReq{
+		ServiceClusterId: instrSvcReq.ServiceClusterId,
+		TaskId:           instrSvcReq.ScheduleTaskId,
+		InstanceList:     instrSvcReq.NodeActSvcReq.InstGroup.InstanceList,
+		Auth:             instrSvcReq.NodeActSvcReq.Auth,
+		Cmd:              instrSvcReq.Instruction.Cmd,
+	}
+
+	//异步初始化
+	ipList := baseEnvReq.InstanceList
+	taskId := baseEnvReq.TaskId
+
+	// create batches
+	// err = createBatches(ipList, states, stepLen)
+
+	// Create sub-task for the given task.
+	subTaskRepo := repository.SubTaskRepo{}
+	batches, err := subTaskRepo.CreateSubTask(ipList, stepLen, scheduleTaskId, taskInfo, svcReq.Rollback)
+
+	/* 1 批处理子任务集合 此处不可并行处理，当一批机器处理完成再进行下一步。
+	1.1 更新批任务
+	1.2 更新批机器
+	1.3 更新总任务
+	*/
+	for i, batch := range batches {
+		//go func() {
+
+		log.Logger.Info("start DeployBeforeDownloadInitAsync async")
+		var wg sync.WaitGroup
+
+		// 2.1 处理子任务下所有机器实例
+		for _, instInfo := range batch.InstIds {
+			wg.Add(1)
+			log.Logger.Infof("async DeployBeforeDownloadInitAsync instanceid:%s", instInfo.InstanceId)
+
+			// 3 处理单机所有指令集
+			go func(instance *types.InstanceInfo) {
+
+				var asyncErr error
+				defer func() {
+					if r := recover(); r != nil {
+						log.Logger.Errorf("%s", debug.Stack())
+						asyncErr = config.ErrSysPanic
+					}
+					if asyncErr != nil {
+						_ = taskRepo.UpdateTaskStatus(ctx, scheduleTaskId, types.TaskStatusFail, asyncErr.Error())
+						return
+					}
+					_ = taskRepo.UpdateTaskStatus(ctx, scheduleTaskId, types.TaskStatusSuccess, "")
+				}()
+
+				// 获取指令集
+				var instrGroup []int64
+				err = jsoniter.Unmarshal([]byte(tmpl.InstrGroup), &instrGroup)
+				if err != nil {
+					log.Logger.Error(err.Error())
+					err = errors.New("schedule_template.instr_group Unmarshal exception")
+					return nil, err
+				}
+
+				for _, instrId := range instrGroup {
+					instrSvcReq.InstrId = instrId
+					if asyncErr = s.doInstr(ctx, instrSvcReq); asyncErr != nil {
+						log.Logger.Error("doInstr err: ", asyncErr)
+						break
+					}
+				}
+
+				// 执行健康监测
+
+				// _ = GetEnvOpsSvcInst().DeployBeforeDownloadInitSingle(ctx, taskId, baseEnvReq.Cmd, instance, baseEnvReq.Auth)
+				wg.Done()
+			}(instInfo)
 		}
-	}()
-	resp.TaskId = schedTaskId
+		wg.Wait()
+		log.Logger.Info("end DeployBeforeDownloadInitAsync async")
+
+		//}
+	}
+
+	resp.TaskId = scheduleTaskId
 	return &ScheduleSvcResp{ServiceDeploySvcResp: resp}, nil
 }
 

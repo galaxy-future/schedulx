@@ -56,6 +56,7 @@ type DeployInfo struct {
 	Strategy          string   `json:"strategy"`  //only support [rolling_update] now
 	InPlace           bool     `json:"in_place"`  //upgrade app in the original instance
 	MaxSurge          int      `json:"max_surge"` //percent, 20 means 20%, valid [1, 100]
+	MaxNum            int      `json:"max_num"`   //num, valid >= 1
 	RepoPath          string   `json:"repo_path"` //download params
 	RepoType          string   `json:"repo_type"` // repo type, [zadig, others]
 	RepoUser          string   `json:"repo_user"`
