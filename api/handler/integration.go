@@ -33,7 +33,7 @@ func (i *Integration) Create(ctx *gin.Context) {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
 		return
 	}
-	err := repository.GetIntegrationInstance().Create(ctx, req.Host, req.Account, req.Password, req.Type, req.Operator)
+	err := repository.GetIntegrationInstance().Create(ctx, req.Host, req.Account, req.Password, req.Type)
 	if err != nil {
 		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
 		return

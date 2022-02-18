@@ -5,6 +5,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/galaxy-future/schedulx/register/constant"
+	"github.com/spf13/cast"
+
 	"github.com/galaxy-future/schedulx/register/config/client"
 
 	"github.com/galaxy-future/schedulx/api/types"
@@ -41,8 +44,9 @@ func (r IntegrationRepo) GetOneByType(ctx context.Context, _type string) (*types
 	}, nil
 }
 
-func (r *IntegrationRepo) Create(ctx context.Context, host, account, password, _type, operator string) error {
+func (r *IntegrationRepo) Create(ctx context.Context, host, account, password, _type string) error {
 	now := time.Now()
+	operator := cast.ToString(ctx.Value(constant.CtxUserNameKey))
 	encryptPassword, err := tool.AesEncrypt([]byte(password), []byte(account))
 	if err != nil {
 		return err
