@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -134,13 +135,16 @@ func (s *EnvService) doDeploy(ctx context.Context, svcReq *DeployAsyncReq, metho
 		wg.Add(1)
 		log.Logger.Infof("async %v instanceid:%s", method, instInfo.InstanceId)
 		go func(instance *types.InstanceInfo) {
-			_ = s.ExecCmdWithUpdateInstanceStatus(ctx, taskId, svcReq.Cmd, instance, svcReq.Auth, instanceStatus)
+			e := s.ExecCmdWithUpdateInstanceStatus(ctx, taskId, svcReq.Cmd, instance, svcReq.Auth, instanceStatus)
+			if err == nil && e != nil {
+				err = e
+			}
 			wg.Done()
 		}(instInfo)
 	}
 	wg.Wait()
 	log.Logger.Infof("end %v async", method)
-	return nil
+	return err
 }
 
 func (s *EnvService) DeployDownloadAsync(ctx context.Context, svcReq *DeployAsyncReq) error {
@@ -234,12 +238,13 @@ func (s *EnvService) DeployBeforeDownloadInitSingle(ctx context.Context, taskId 
 
 func (s *EnvService) ExecCmdWithUpdateInstanceStatus(ctx context.Context, taskId int64, cmd string, inst *types.InstanceInfo, auth *types.InstanceAuth, instanceStatus types.InstanceStatus) error {
 	var err error
+	var outs []byte
 	defer func() {
 		if r := recover(); r != nil {
 			log.Logger.Errorf("%s", debug.Stack())
 			err = config.ErrSysPanic
 		}
-		var msg string
+		msg := ""
 		if err != nil {
 			msg = err.Error()
 		}
@@ -248,9 +253,10 @@ func (s *EnvService) ExecCmdWithUpdateInstanceStatus(ctx context.Context, taskId
 	if cmd == "" {
 		return nil
 	}
-	_, err = RemoteCmdExec(ctx, cmd, _remoteBaseEnvScript, inst.IpInner, auth.UserName, auth.Pwd)
+	outs, err = RemoteCmdExec(ctx, cmd, _remoteBaseEnvScript, inst.IpInner, auth.UserName, auth.Pwd)
 	if err != nil {
 		instanceStatus = types.InstanceStatusFail
+		err = fmt.Errorf("error:%v, outs:%v", err, string(outs))
 		return err
 	}
 	return nil

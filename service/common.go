@@ -24,7 +24,7 @@ func RemoteCmdExec(ctx context.Context, localCmd string, remoteScript string, ip
 		if errCnt >= 3 {
 			return nil, err
 		}
-		log.Logger.Info("new goph start")
+		log.Logger.Info("SSH exec cmd start")
 		SSHClient, err = goph.NewUnknown(uname, ip, goph.Password(pwd))
 		if err != nil {
 			errCnt++
@@ -36,15 +36,14 @@ func RemoteCmdExec(ctx context.Context, localCmd string, remoteScript string, ip
 		break
 	}
 
-	log.Logger.Infof("cmd:%s, remoteScript:%s", localCmd, remoteScript)
 	cmd := localCmd
-	log.Logger.Infof("cmd: %s", cmd)
 	data, err = SSHClient.Run(cmd)
+	log.Logger.Infof("Exec cmd: %s", cmd)
+	log.Logger.Infof("SSH client Run Result:%s", data)
+	log.Logger.Infof("SSH client Run Error:%v", err)
 	if err != nil {
-		log.Logger.Error("ssh client Run", err)
 		return data, err
 	}
-	log.Logger.Infof("ssh client Run result:%s", data)
 	return data, nil
 }
 

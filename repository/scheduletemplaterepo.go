@@ -338,10 +338,10 @@ func (r *ScheduleTemplateRepo) GetDeployTemplateList(ctx context.Context, servic
 }
 
 func getResourceType(deployMode string) string {
-	if deployMode == "k8s" {
-		return "instance_group"
+	if deployMode == constant.Kubernetes {
+		return constant.InstanceGroup
 	}
-	return "cluster"
+	return constant.Cluster
 }
 
 // Delete 删除扩缩容模板以及关联集群

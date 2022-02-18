@@ -176,9 +176,9 @@ func (s *ServiceSvc) Detail(ctx context.Context, serviceName string) (map[string
 	return ret, nil
 }
 
-func (s *ServiceSvc) Update(ctx context.Context, serviceName, description, domain, port string) (map[string]interface{}, error) {
+func (s *ServiceSvc) Update(ctx context.Context, serviceName, description, domain, port, gitRepo string) (map[string]interface{}, error) {
 	var err error
-	ret, err := repository.GetServiceRepoInst().Update(ctx, serviceName, description, domain, port)
+	ret, err := repository.GetServiceRepoInst().Update(ctx, serviceName, description, domain, port, gitRepo)
 	if err != nil {
 		log.Logger.Errorf("update service_name:%v error:%v", serviceName, err)
 		return nil, err
@@ -197,6 +197,7 @@ func (s *ServiceSvc) CreateService(ctx context.Context, svcReq *ServiceCreateSvc
 		Language:    svcReq.ServiceInfo.Language,
 		Domain:      svcReq.ServiceInfo.Domain,
 		Port:        svcReq.ServiceInfo.Port,
+		GitRepo:     svcReq.ServiceInfo.GitRepo,
 	}
 	dbo := client.WriteDBCli.Begin().WithContext(ctx)
 	defer func() {
@@ -224,4 +225,8 @@ func (s *ServiceSvc) CreateService(ctx context.Context, svcReq *ServiceCreateSvc
 	}
 	svcResp.ServiceClusterId = svcClusterObj.Id
 	return svcResp, nil
+}
+
+func (s *ServiceSvc) Delete(ctx context.Context, ids []int64) error {
+	return repository.GetServiceRepoInst().DeleteServices(ctx, ids)
 }

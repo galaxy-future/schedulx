@@ -383,6 +383,7 @@ func (s *TemplateSvc) createContainerTemplate(ctx context.Context, svcReq *TmplE
 func (s *TemplateSvc) createInstanceDeployTmpl(ctx context.Context, args *types.TmpInfo, deployInfo *types.DeployInfo, serviceName string, dbo *gorm.DB) (*db.ScheduleTemplate, error) {
 	var err error
 	tmplAttrs, _ := jsoniter.MarshalToString(&types.TmplAttrs{
+		RepoType:     deployInfo.RepoType,
 		RepoPath:     deployInfo.RepoPath,
 		RepoUser:     deployInfo.RepoUser,
 		RepoPassword: deployInfo.RepoPassword,
@@ -593,6 +594,7 @@ func (s *TemplateSvc) InfoAction(ctx context.Context, svcReq *TmplInfoSvcReq) (*
 	if tmpl.TmplAttrs != "" {
 		tmplAttrs := &types.TmplAttrs{}
 		_ = jsoniter.UnmarshalFromString(tmpl.TmplAttrs, tmplAttrs)
+		deployInfo.RepoType = tmplAttrs.RepoType
 		deployInfo.RepoPath = tmplAttrs.RepoPath
 		deployInfo.RepoUser = tmplAttrs.RepoUser
 		deployInfo.RepoPassword = tmplAttrs.RepoPassword

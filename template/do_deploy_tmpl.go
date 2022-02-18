@@ -25,6 +25,9 @@ func ParseDeployCmd(params DeployParams) (string, error) {
 	tmpl, _ := template.New("deploy").Funcs(template.FuncMap{
 		"Unfold": func(envs []string) string {
 			for i, env := range envs {
+				if strings.TrimSpace(env) == "" {
+					continue
+				}
 				envs[i] = "export " + env
 			}
 			return strings.Join(envs, "\n")

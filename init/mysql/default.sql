@@ -108,15 +108,16 @@ DROP TABLE IF EXISTS `service`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `service`
 (
-    `id`           bigint(20)  NOT NULL AUTO_INCREMENT,
-    `service_name` varchar(32) NOT NULL COMMENT '服务名字(全局唯一)',
-    `description`  varchar(32) NOT NULL COMMENT '服务描述',
-    `language`     varchar(16) NOT NULL COMMENT '服务类型 java,php,golang nginx',
-    `domain`       varchar(64) NOT NULL COMMENT '服务域名',
-    `port`         varchar(8)  NOT NULL COMMENT '服务端口',
-    `is_deleted`   tinyint(4)  NOT NULL DEFAULT '0' COMMENT '是否被删除 0 否, 1 是',
-    `create_at`    timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `update_at`    timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `id`           bigint(20)   NOT NULL AUTO_INCREMENT,
+    `service_name` varchar(32)  NOT NULL COMMENT '服务名字(全局唯一)',
+    `description`  varchar(32)  NOT NULL COMMENT '服务描述',
+    `language`     varchar(16)  NOT NULL COMMENT '服务类型 java,php,golang nginx',
+    `domain`       varchar(64)  NOT NULL COMMENT '服务域名',
+    `port`         varchar(8)   NOT NULL COMMENT '服务端口',
+    `git_repo`     varchar(256) NOT NULL COMMENT 'Git仓库',
+    `is_deleted`   tinyint(4)   NOT NULL DEFAULT '0' COMMENT '是否被删除 0 否, 1 是',
+    `create_at`    timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_at`    timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `server_name` (`service_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务信息表';
@@ -169,3 +170,24 @@ CREATE TABLE `task`
     PRIMARY KEY (`id`),
     KEY                `idx_sched_tmpl_id` (`sched_tmpl_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='调度任务表';
+
+-- integration: table
+CREATE TABLE `integration`
+(
+    `id`        bigint(20)                       NOT NULL AUTO_INCREMENT,
+    `host`      varchar(256) COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+    `account`   varchar(64) COLLATE utf8mb4_bin  NOT NULL DEFAULT '',
+    `password`  varchar(512) COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+    `type`      varchar(32) COLLATE utf8mb4_bin  NOT NULL DEFAULT '',
+    `create_at` timestamp                        NULL     DEFAULT NULL,
+    `update_at` timestamp                        NULL     DEFAULT NULL,
+    `create_by` varchar(32) COLLATE utf8mb4_bin           DEFAULT NULL,
+    `update_by` varchar(32) COLLATE utf8mb4_bin           DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `integration_type_index` (`type`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_bin;
+
+-- No native definition for element: integration_type_index (index)
+
