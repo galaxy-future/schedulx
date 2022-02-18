@@ -43,6 +43,7 @@ func Init() *gin.Engine {
 			servicePath.GET("breathrecord", h.BreathRecord)
 			servicePath.POST("update", h.Update)
 			servicePath.POST("create", h.Create)
+			servicePath.POST("delete", h.Delete)
 			servicePath.GET("zadig/workflow/list", h.GetWorkflows)
 			servicePath.GET("zadig/artifact/list", h.GetWorkflowTasks)
 		}

@@ -226,3 +226,7 @@ func (s *ServiceSvc) CreateService(ctx context.Context, svcReq *ServiceCreateSvc
 	svcResp.ServiceClusterId = svcClusterObj.Id
 	return svcResp, nil
 }
+
+func (s *ServiceSvc) Delete(ctx context.Context, ids []int64) error {
+	return repository.GetServiceRepoInst().DeleteServices(ctx, ids)
+}

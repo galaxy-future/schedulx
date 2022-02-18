@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/galaxy-future/schedulx/register/config/client"
+
 	"github.com/galaxy-future/schedulx/api/types"
 	"gorm.io/gorm"
 
@@ -85,6 +87,19 @@ func (r *ServiceRepo) GetServiceCluster(ctx context.Context, id int64) (*db.Serv
 		return nil, err
 	}
 	return obj, nil
+}
+
+func (r *ServiceRepo) DeleteServices(ctx context.Context, ids []int64) error {
+	return client.WriteDBCli.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, id := range ids {
+			m := &db.Service{Id: id}
+			err := tx.Delete(m).Error
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (r *ServiceRepo) GetServiceClusters(ctx context.Context, serviceName, serviceClusterName string) ([]*db.ServiceCluster, error) {

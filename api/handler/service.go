@@ -369,6 +369,26 @@ func (h *Service) Create(ctx *gin.Context) {
 	return
 }
 
+// Delete 删除服务
+func (h *Service) Delete(ctx *gin.Context) {
+	var err error
+	var params = struct {
+		ServiceIds []int64 `json:"ids"`
+	}{}
+	err = ctx.BindJSON(&params)
+	if err != nil {
+		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, "参数为整数数组")
+		return
+	}
+	err = service.GetServiceIns().Delete(ctx, params.ServiceIds)
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	MkResponse(ctx, http.StatusOK, "success", nil)
+	return
+}
+
 // Update 更新数据表记录
 func (h *Service) Update(ctx *gin.Context) {
 	var err error
