@@ -2,8 +2,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
@@ -29,7 +27,7 @@ func GetSubTaskRepoInst() *SubTaskRepo {
 	return subTaskRepoInst
 }
 
-func (r *SubTaskRepo) GetLastExpandSuccTask(ctx context.Context, tmplId int64) (*db.Task, error) {
+func (r *SubTaskRepo) GetLastExpandSuccSubTask(ctx context.Context, tmplId int64) (*db.Task, error) {
 	var err error
 	where := map[string]interface{}{
 		"sched_tmpl_id": tmplId,
@@ -59,7 +57,7 @@ func (r *SubTaskRepo) CountByCond(ctx context.Context, schedTmplIds []int64, sta
 
 func (r *SubTaskRepo) CreateSubTask(ipList []*types.InstanceInfo, stepLen int, schedTaskId int64, taskInfo string, isRollback bool) ([]*db.SubTask, error) {
 	var err error
-	taskStatus := types.TaskStatusRunning
+	/*taskStatus := types.TaskStatusRunning
 	if isRollback {
 		taskStatus = types.TaskStatusRollingBack
 	}
@@ -91,7 +89,7 @@ func (r *SubTaskRepo) CreateSubTask(ipList []*types.InstanceInfo, stepLen int, s
 
 		batch := &models.FlowBatch{
 			Flow:        instance,
-			Status:      models.STATUS_INIT,
+			Status:      STATUS_INIT,
 			Step:        -1, // not started
 			Nodes:       idsStr,
 			CreatedTime: time.Now(),
@@ -128,11 +126,11 @@ func (r *SubTaskRepo) CreateSubTask(ipList []*types.InstanceInfo, stepLen int, s
 	if err = db.Create(newTask, nil); err != nil {
 		log.Logger.Error(err)
 		return 0, err
-	}
-	return newTask.Id, err
+	}*/
+	return nil, err
 }
 
-func (r *SubTaskRepo) UpdateTaskRelationTaskId(ctx context.Context, taskId int64, field string, relationTaskId int64) error {
+func (r *SubTaskRepo) UpdateSubTaskRelationTaskId(ctx context.Context, taskId int64, field string, relationTaskId int64) error {
 	var err error
 	obj := &db.Task{}
 	err = db.Get(taskId, obj)
@@ -174,7 +172,7 @@ func (r *SubTaskRepo) UpdateTaskRelationTaskId(ctx context.Context, taskId int64
 	return err
 }
 
-func (r *SubTaskRepo) UpdateTaskStatus(ctx context.Context, taskId int64, taskStatus, msg string) error {
+func (r *SubTaskRepo) UpdateSubTaskStatus(ctx context.Context, taskId int64, taskStatus, msg string) error {
 	var err error
 	data := map[string]interface{}{
 		"task_status": taskStatus,
@@ -197,7 +195,7 @@ func (r *SubTaskRepo) UpdateTaskStatus(ctx context.Context, taskId int64, taskSt
 	return err
 }
 
-func (r *SubTaskRepo) UpdateTaskStep(ctx context.Context, taskId int64, taskStep, msg string) error {
+func (r *SubTaskRepo) UpdateSubTaskStep(ctx context.Context, taskId int64, taskStep, msg string) error {
 	var err error
 	data := map[string]interface{}{
 		"task_step": taskStep,
@@ -220,7 +218,7 @@ func (r *SubTaskRepo) UpdateTaskStep(ctx context.Context, taskId int64, taskStep
 	return err
 }
 
-func (r *SubTaskRepo) GetTask(ctx context.Context, taskId int64) (*db.Task, error) {
+func (r *SubTaskRepo) GetSubTask(ctx context.Context, taskId int64) (*db.Task, error) {
 	var err error
 	obj := &db.Task{}
 	err = db.Get(taskId, obj)
@@ -232,7 +230,7 @@ func (r *SubTaskRepo) GetTask(ctx context.Context, taskId int64) (*db.Task, erro
 	return obj, err
 }
 
-func (r *SubTaskRepo) GetBridgXTaskId(ctx context.Context, taskId int64) (int64, error) {
+func (r *SubTaskRepo) GetBridgXSubTaskId(ctx context.Context, taskId int64) (int64, error) {
 	var err error
 	task, err := r.GetTask(ctx, taskId)
 	if err != nil {

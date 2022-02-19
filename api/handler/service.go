@@ -42,6 +42,7 @@ type ServiceDeployHttpRequest struct {
 	ServiceClusterId int64  `form:"service_cluster_id" json:"service_cluster_id"`
 	DownloadFileUrl  string `form:"download_file_url" json:"download_file_url"`
 	Count            int64  `form:"count" json:"count"`
+	DeployType       string `form:"deploy_type" json:"deploy_type"` // 部署方式 all | scroll
 	ExecType         string `form:"exec_type" json:"exec_type"`
 	Rollback         bool   `form:"rollback" json:"rollback"`
 }
@@ -217,6 +218,7 @@ func (h *Service) Deploy(ctx *gin.Context) {
 			DownloadFileUrl:  httpReq.DownloadFileUrl,
 			Count:            int64(instanceCount),
 			ExecType:         httpReq.ExecType,
+			DeployType:       httpReq.DeployType,
 			Rollback:         httpReq.Rollback,
 		},
 	}

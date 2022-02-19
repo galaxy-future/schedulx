@@ -8,7 +8,10 @@ type SubTask struct {
 	RelationTaskId string     `gorm:"column:relation_task_id" json:"relation_task_id"`
 	TaskStatus     string     `gorm:"column:task_status" json:"task_status"`
 	TaskStep       string     `gorm:"column:task_step" json:"task_step"`
-	InstIds        string     `gorm:"column:inst_ids" json:"inst_ids"` // 本次任务操作的实例id
+	MaxSurge       int64      `gorm:"column:max_surge" json:"max_surge"`         //percent, 20 means 20%, valid [1, 100]
+	InstanceList   string     `gorm:"column:instance_list" json:"instance_list"` // 本次任务操作的实例信息
+	InstIds        string     `gorm:"column:inst_ids" json:"inst_ids"`           // 本次任务操作的实例id
+	InstCnt        int64      `gorm:"column:inst_cnt" json:"inst_cnt"`           // 本次任务操作的实例数量
 	Msg            string     `gorm:"column:msg" json:"msg"`
 	TaskInfo       string     `gorm:"column:task_info" json:"task_info"`
 	BeginAt        time.Time  `gorm:"column:begin_at" json:"begin_at"`

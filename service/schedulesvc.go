@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/galaxy-future/schedulx/pkg/nodeact"
 	"github.com/galaxy-future/schedulx/register/config"
 	"runtime/debug"
 	"sync"
@@ -61,6 +62,7 @@ type ServiceDeploySvcReq struct {
 	ServiceClusterId int64  `json:"service_cluster_id'"`
 	DownloadFileUrl  string `json:"download_file_url"`
 	Count            int64  `json:"count"`
+	DeployType       string `json:"deploy_type"` // 部署方式 all | scroll
 	ExecType         string `json:"exec_type"`
 	Rollback         bool   `json:"rollback"`
 }
@@ -259,7 +261,89 @@ func (s *ScheduleSvc) shrinkAction(ctx context.Context, svcReq *ServiceShrinkSvc
 	return &ScheduleSvcResp{ServiceShrinkSvcResp: resp}, nil
 }
 
-func (s *ScheduleSvc) deployAction(ctx context.Context, svcReq *ServiceDeploySvcReq) (*ScheduleSvcResp, error) {
+func (s *ScheduleSvc) deployAction(ctx context.Context, svcReq *ServiceDeploySvcReq) (svcResp interface{}, err error) {
+	switch svcReq.DeployType {
+	case constant.TaskDeployTypeAll:
+		svcResp, err = s.deployActionForAll(ctx, svcReq)
+	case constant.TaskDeployTypeScroll:
+		svcResp, err = s.deployActionForScroll(ctx, svcReq)
+	default:
+		err = errors.New("no deploy type matched")
+	}
+	return svcResp, err
+}
+
+func (s *ScheduleSvc) deployActionForAll(ctx context.Context, svcReq *ServiceDeploySvcReq) (*ScheduleSvcResp, error) {
+	var err error
+	resp := &ServiceDeploySvcResp{}
+	// 获取 tmpl
+	tmplRepo := repository.GetScheduleTemplateRepoInst()
+	tmpl, err := tmplRepo.GetSchedTmplBySvcClusterId(svcReq.ServiceClusterId, constant.ScheduleTypeDeploy)
+	log.Logger.Infof("deployAction | %+v", tmpl)
+	if err != nil {
+		return nil, err
+	}
+	// 创建 task
+	userName := ctx.Value(constant.CtxUserNameKey)
+	taskRepo := repository.TaskRepo{}
+	taskInfo, _ := jsoniter.MarshalToString(svcReq)
+	schedTaskId, err := taskRepo.CreateTask(ctx, tmpl.Id, svcReq.Count, cast.ToString(userName), svcReq.ExecType, taskInfo, svcReq.Rollback)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			_ = taskRepo.UpdateTaskStatus(ctx, schedTaskId, types.TaskStatusFail, err.Error())
+			return
+		}
+	}()
+	// 获取指令集
+	var instrGroup []int64
+	err = jsoniter.Unmarshal([]byte(tmpl.InstrGroup), &instrGroup)
+	if err != nil {
+		log.Logger.Error(err.Error())
+		err = errors.New("schedule_template.instr_group Unmarshal exception")
+		return nil, err
+	}
+
+	// 依次执行指令集
+	instrSvcReq := &InstrSvcReq{
+		ServiceName:      tmpl.ServiceName,
+		ServiceClusterId: tmpl.ServiceClusterId,
+		ScheduleTaskId:   schedTaskId,
+		NodeActSvcReq: &NodeActSvcReq{
+			TaskId:           schedTaskId,
+			ServiceClusterId: svcReq.ServiceClusterId,
+			DownloadFileUrl:  svcReq.DownloadFileUrl,
+			InstanceCount:    svcReq.Count,
+		},
+	}
+	go func() {
+		var asyncErr error
+		defer func() {
+			if r := recover(); r != nil {
+				log.Logger.Errorf("%s", debug.Stack())
+				asyncErr = config.ErrSysPanic
+			}
+			if asyncErr != nil {
+				_ = taskRepo.UpdateTaskStatus(ctx, schedTaskId, types.TaskStatusFail, asyncErr.Error())
+				return
+			}
+			_ = taskRepo.UpdateTaskStatus(ctx, schedTaskId, types.TaskStatusSuccess, "")
+		}()
+		for _, instrId := range instrGroup {
+			instrSvcReq.InstrId = instrId
+			if asyncErr = s.doInstr(ctx, instrSvcReq); asyncErr != nil {
+				log.Logger.Error("doInstr err: ", asyncErr)
+				break
+			}
+		}
+	}()
+	resp.TaskId = schedTaskId
+	return &ScheduleSvcResp{ServiceDeploySvcResp: resp}, nil
+}
+
+func (s *ScheduleSvc) deployActionForScroll(ctx context.Context, svcReq *ServiceDeploySvcReq) (*ScheduleSvcResp, error) {
 	var err error
 	resp := &ServiceDeploySvcResp{}
 	// 获取 tmpl
@@ -283,10 +367,6 @@ func (s *ScheduleSvc) deployAction(ctx context.Context, svcReq *ServiceDeploySvc
 			return
 		}
 	}()
-
-	// TODO Danny Liu(幸程) Created in 17:42 of 2022/2/16 修改节点状态
-	// Create node states for every node in given task
-	// states, err := exec.createNodeStates(instance, poolNode)
 
 	deployInfo := &types.DeployInfo{}
 	err = jsoniter.UnmarshalFromString(tmpl.DeployMode, deployInfo)
@@ -315,98 +395,129 @@ func (s *ScheduleSvc) deployAction(ctx context.Context, svcReq *ServiceDeploySvc
 		return nil, err
 	}
 
-	// 依次执行指令集
-	instrSvcReq := &InstrSvcReq{
-		ServiceName:      tmpl.ServiceName,
-		ServiceClusterId: tmpl.ServiceClusterId,
-		ScheduleTaskId:   scheduleTaskId,
-		NodeActSvcReq: &NodeActSvcReq{
-			TaskId:           scheduleTaskId,
-			ServiceClusterId: svcReq.ServiceClusterId,
-			DownloadFileUrl:  svcReq.DownloadFileUrl,
-			InstanceCount:    svcReq.Count,
-		},
+	ret, err := getBridgxInstances(ctx, &InstrSvcReq{ServiceClusterId: tmpl.ServiceClusterId})
+	if err != nil {
+		return nil, err
 	}
-
-	baseEnvReq := &BaseEnvInitAsyncSvcReq{
-		ServiceClusterId: instrSvcReq.ServiceClusterId,
-		TaskId:           instrSvcReq.ScheduleTaskId,
-		InstanceList:     instrSvcReq.NodeActSvcReq.InstGroup.InstanceList,
-		Auth:             instrSvcReq.NodeActSvcReq.Auth,
-		Cmd:              instrSvcReq.Instruction.Cmd,
-	}
-
-	//异步初始化
-	ipList := baseEnvReq.InstanceList
-	taskId := baseEnvReq.TaskId
-
-	// create batches
-	// err = createBatches(ipList, states, stepLen)
 
 	// Create sub-task for the given task.
 	subTaskRepo := repository.SubTaskRepo{}
-	batches, err := subTaskRepo.CreateSubTask(ipList, stepLen, scheduleTaskId, taskInfo, svcReq.Rollback)
-
-	/* 1 批处理子任务集合 此处不可并行处理，当一批机器处理完成再进行下一步。
-	1.1 更新批任务
-	1.2 更新批机器
-	1.3 更新总任务
-	*/
-	for i, batch := range batches {
-		//go func() {
-
-		log.Logger.Info("start DeployBeforeDownloadInitAsync async")
-		var wg sync.WaitGroup
-
-		// 2.1 处理子任务下所有机器实例
-		for _, instInfo := range batch.InstIds {
-			wg.Add(1)
-			log.Logger.Infof("async DeployBeforeDownloadInitAsync instanceid:%s", instInfo.InstanceId)
-
-			// 3 处理单机所有指令集
-			go func(instance *types.InstanceInfo) {
-
-				var asyncErr error
-				defer func() {
-					if r := recover(); r != nil {
-						log.Logger.Errorf("%s", debug.Stack())
-						asyncErr = config.ErrSysPanic
-					}
-					if asyncErr != nil {
-						_ = taskRepo.UpdateTaskStatus(ctx, scheduleTaskId, types.TaskStatusFail, asyncErr.Error())
-						return
-					}
-					_ = taskRepo.UpdateTaskStatus(ctx, scheduleTaskId, types.TaskStatusSuccess, "")
-				}()
-
-				// 获取指令集
-				var instrGroup []int64
-				err = jsoniter.Unmarshal([]byte(tmpl.InstrGroup), &instrGroup)
-				if err != nil {
-					log.Logger.Error(err.Error())
-					err = errors.New("schedule_template.instr_group Unmarshal exception")
-					return nil, err
-				}
-
-				for _, instrId := range instrGroup {
-					instrSvcReq.InstrId = instrId
-					if asyncErr = s.doInstr(ctx, instrSvcReq); asyncErr != nil {
-						log.Logger.Error("doInstr err: ", asyncErr)
-						break
-					}
-				}
-
-				// 执行健康监测
-
-				// _ = GetEnvOpsSvcInst().DeployBeforeDownloadInitSingle(ctx, taskId, baseEnvReq.Cmd, instance, baseEnvReq.Auth)
-				wg.Done()
-			}(instInfo)
-		}
-		wg.Wait()
-		log.Logger.Info("end DeployBeforeDownloadInitAsync async")
-
-		//}
+	instanceList := ret.NodeActSvcResp.InstGroup.InstanceList
+	scheduleSubTaskList, err := subTaskRepo.CreateSubTask(instanceList, stepLen, scheduleTaskId, taskInfo, svcReq.Rollback)
+	if err != nil {
+		return nil, err
 	}
+
+	instrSvcReq := &InstrSvcReq{
+		ServiceName:      tmpl.ServiceName,
+		ServiceClusterId: tmpl.ServiceClusterId,
+		NodeActSvcReq: &NodeActSvcReq{
+			ServiceClusterId: svcReq.ServiceClusterId,
+			DownloadFileUrl:  svcReq.DownloadFileUrl,
+			Auth:             ret.NodeActSvcResp.Auth,
+		},
+	}
+
+	// 获取指令集
+	var instrGroup []int64
+	err = jsoniter.Unmarshal([]byte(tmpl.InstrGroup), &instrGroup)
+	if err != nil {
+		log.Logger.Error(err.Error())
+		err = errors.New("schedule_template.instr_group Unmarshal exception")
+		return nil, err
+	}
+
+	go func() {
+		// 1.2 更新总任务状态 成功/部分成功/失败
+		defer func() {
+			var asyncErr error
+			defer func() {
+				if r := recover(); r != nil {
+					log.Logger.Errorf("%s", debug.Stack())
+					asyncErr = config.ErrSysPanic
+				}
+				if asyncErr != nil {
+					_ = taskRepo.UpdateTaskStatus(ctx, scheduleTaskId, types.TaskStatusFail, asyncErr.Error())
+					return
+				}
+				_ = taskRepo.UpdateTaskStatus(ctx, scheduleTaskId, types.TaskStatusSuccess, "")
+			}()
+		}()
+
+		// 1.1 批处理子任务集合 此处不可并行处理，当一批机器处理完成再进行下一步。
+		var asyncErr error
+		for _, subTask := range scheduleSubTaskList {
+			var wg sync.WaitGroup
+			log.Logger.Info("start deploy instance async")
+			var instanceList []*types.InstanceInfo
+			err := jsoniter.UnmarshalFromString(subTask.InstanceList, instanceList)
+			if err != nil {
+				log.Logger.Error(err.Error())
+				err = errors.New("subTask.InstanceList Unmarshal exception")
+				return
+			}
+			subTaskId := subTask.Id
+			instrSvcReq.NodeActSvcReq.InstanceCount = subTask.InstCnt
+			instrSvcReq.NodeActSvcReq.TaskId = subTaskId
+			instrSvcReq.ScheduleTaskId = subTaskId
+
+			// 2.1 处理子任务下所有机器实例
+			instanceGroup := &nodeact.InstanceGroup{TaskId: ret.NodeActSvcResp.InstGroup.TaskId}
+			for _, instInfo := range instanceList {
+				wg.Add(1)
+				instanceGroup.InstanceList = []*types.InstanceInfo{instInfo}
+				instanceId := instInfo.InstanceId
+				instrSvcReq.InstanceTaskId = instanceId
+				instrSvcReq.NodeActSvcReq.InstGroup = instanceGroup
+				log.Logger.Infof("async deploy instance instanceid:%s", instanceId)
+				// 依次执行单机所有指令集
+				go func(instance *types.InstanceInfo) {
+					for _, instrId := range instrGroup {
+						instrSvcReq.InstrId = instrId
+						// 3.2 下面方法需要存储机器在每一步的成功失败状态
+						if err := s.doInstrForScrollDeploy(ctx, instrSvcReq); err != nil {
+							asyncErr = err
+							log.Logger.Error("doInstr err: ", err)
+							break
+						}
+					}
+					// 更新机器状态
+					if err == nil {
+						// 3.3 执行健康监测
+
+						// 3.4 更新机器健康检查信息
+
+						// 更新数据库字段为 完成健康检测
+						if err != nil {
+							_, _ = repository.GetInstanceRepoIns().UpdateStatus(ctx, types.InstanceStatusHealthCheckFail, subTaskId, instance.IpInner)
+							return
+						}
+						_, _ = repository.GetInstanceRepoIns().UpdateStatus(ctx, types.InstanceStatusHealthCheck, subTaskId, instance.IpInner)
+					}
+					wg.Done()
+				}(instInfo)
+			}
+
+			// 2.2 更新子任务状态 成功/部分成功/失败
+			wg.Wait()
+			log.Logger.Info("end deploy instance async")
+			if r := recover(); r != nil {
+				log.Logger.Errorf("%s", debug.Stack())
+				asyncErr = config.ErrSysPanic
+			}
+			if asyncErr != nil {
+				_ = subTaskRepo.UpdateSubTaskStatus(ctx, subTaskId, types.TaskStatusFail, asyncErr.Error())
+				break
+			}
+			_ = subTaskRepo.UpdateSubTaskStatus(ctx, subTaskId, types.TaskStatusSuccess, "")
+		}
+
+		if asyncErr != nil {
+			_ = taskRepo.UpdateTaskStep(ctx, scheduleTaskId, types.TaskStatusFail, err.Error())
+			return
+		}
+		_ = taskRepo.UpdateTaskStep(ctx, scheduleTaskId, types.TaskStatusSuccess, "")
+	}()
 
 	resp.TaskId = scheduleTaskId
 	return &ScheduleSvcResp{ServiceDeploySvcResp: resp}, nil
@@ -433,19 +544,20 @@ func (s *ScheduleSvc) doInstr(ctx context.Context, instrSvcReq *InstrSvcReq) err
 	}
 	instrSvcResp := svcResp.(*InstrSvcResp)
 	taskRepo := repository.GetTaskRepoInst()
+	instanceGroup := instrSvcResp.NodeActSvcResp.InstGroup
 	switch instrument.InstrAction {
 	case instrSvc.BridgXExpand: // 给下一轮赋值参数
 		instrSvcReq.NodeActSvcReq.InstGroup = instrSvcResp.BridgXSvcResp.InstGroup
 		instrSvcReq.NodeActSvcReq.Auth = instrSvcResp.BridgXSvcResp.Auth
 		err = taskRepo.UpdateTaskRelationTaskId(ctx, instrSvcReq.ScheduleTaskId, types.BridgXTaskId, instrSvcResp.BridgXSvcResp.TaskId)
 	case instrSvc.NodeActInitBase:
-		instrSvcReq.NodeActSvcReq.InstGroup = instrSvcResp.NodeActSvcResp.InstGroup
-		err = taskRepo.UpdateTaskRelationTaskId(ctx, instrSvcReq.ScheduleTaskId, types.NodeactTaskId, instrSvcResp.NodeActSvcResp.InstGroup.TaskId)
+		instrSvcReq.NodeActSvcReq.InstGroup = instanceGroup
+		err = taskRepo.UpdateTaskRelationTaskId(ctx, instrSvcReq.ScheduleTaskId, types.NodeactTaskId, instanceGroup.TaskId)
 	case instrSvc.NodeActInitSvc:
-		instrSvcReq.NodeActSvcReq.InstGroup = instrSvcResp.NodeActSvcResp.InstGroup
+		instrSvcReq.NodeActSvcReq.InstGroup = instanceGroup
 	case instrSvc.MountSLB:
 	case instrSvc.UmountSLB:
-		instrSvcReq.BridgXSvcReq.InstGroup = instrSvcResp.NodeActSvcResp.InstGroup
+		instrSvcReq.BridgXSvcReq.InstGroup = instanceGroup
 	case instrSvc.BridgXShrink:
 	case instrSvc.MountNginx:
 	case instrSvc.UmountNginx:
@@ -458,6 +570,28 @@ func (s *ScheduleSvc) doInstr(ctx context.Context, instrSvcReq *InstrSvcReq) err
 	case instrSvc.NodeActAfterDeploy:
 	default:
 		err = fmt.Errorf("instr.action invalid:%s", instrument.InstrAction)
+	}
+	return err
+}
+
+func (s *ScheduleSvc) doInstrForScrollDeploy(ctx context.Context, instrSvcReq *InstrSvcReq) error {
+	var err error
+	defer func() {
+		if err != nil {
+			log.Logger.Errorf("doInstrForScrollDeploy instrSvcReq:%s, %v", tool.ToJson(instrSvcReq), err)
+		}
+	}()
+
+	instrRepo := repository.GetInstrRepoInst()
+	instrument, err := instrRepo.GetInstr(ctx, instrSvcReq.InstrId)
+	if err != nil {
+		return err
+	}
+	instrSvcReq.Instruction = instrument
+	instrSvc := GetInstrSvcInst()
+	_, err = instrSvc.ExecActForScrollDeploy(ctx, instrSvcReq, instrument.InstrAction)
+	if err != nil {
+		return err
 	}
 	return err
 }

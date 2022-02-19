@@ -26,7 +26,7 @@ type InitServiceRequest struct {
 }
 
 type InstanceGroup struct {
-	TaskId       int64                 `json:"task_id"`
+	TaskId       int64                 `json:"task_id"` // relationTaskId
 	InstanceList []*types.InstanceInfo `json:"instance_list"`
 }
 

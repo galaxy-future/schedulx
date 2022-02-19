@@ -40,7 +40,7 @@ func (r *instanceRepo) GetInsListCond(ctx context.Context, page, pageSize int, c
 }
 
 // UpdateStatus 更新实例状态
-func (r *instanceRepo) UpdateStatus(ctx context.Context, status, taskId string, ipInner string) (int64, error) {
+func (r *instanceRepo) UpdateStatus(ctx context.Context, status types.InstanceStatus, taskId int64, ipInner string) (int64, error) {
 	instance := &db.Instance{}
 	ret, err := db.Updates(instance, map[string]interface{}{"task_id": taskId, "ip_inner": ipInner}, map[string]interface{}{"instance_status": status}, nil)
 	if err != nil {

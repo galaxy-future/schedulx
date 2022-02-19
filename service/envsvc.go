@@ -163,6 +163,60 @@ func (s *EnvService) AfterDeployAsync(ctx context.Context, svcReq *DeployAsyncRe
 	return s.doDeploy(ctx, svcReq, "AfterDeployAsync", types.InstanceStatusAfterDeploy)
 }
 
+func (s *EnvService) doDeployForScrollDeploy(ctx context.Context, svcReq *DeployAsyncReq, method string, instanceStatus types.InstanceStatus) error {
+	var err error
+	s.entryLog(ctx, method, svcReq)
+	defer func() {
+		s.exitLog(ctx, method, svcReq, nil, err)
+	}()
+
+	//初始化
+	log.Logger.Infof("start %v async", method)
+	for _, instInfo := range svcReq.InstanceList {
+		log.Logger.Infof("async %v instanceid:%s", method, instInfo.InstanceId)
+		e := s.ExecCmdWithUpdateInstanceStatus(ctx, svcReq.TaskId, svcReq.Cmd, instInfo, svcReq.Auth, instanceStatus)
+		if err == nil && e != nil {
+			err = e
+		}
+	}
+	log.Logger.Infof("end %v async", method)
+	return err
+}
+
+func (s *EnvService) DeployDownloadAsyncForScrollDeploy(ctx context.Context, svcReq *DeployAsyncReq) error {
+	return s.doDeployForScrollDeploy(ctx, svcReq, "DeployDownloadAsyncForScrollDeploy", types.InstanceStatusDownload)
+}
+
+func (s *EnvService) BeforeDeployAsyncForScrollDeploy(ctx context.Context, svcReq *DeployAsyncReq) error {
+	return s.doDeployForScrollDeploy(ctx, svcReq, "BeforeDeployAsyncForScrollDeploy", types.InstanceStatusBeforeDeploy)
+}
+
+func (s *EnvService) DeployAsyncForScrollDeploy(ctx context.Context, svcReq *DeployAsyncReq) error {
+	return s.doDeployForScrollDeploy(ctx, svcReq, "DeployAsyncForScrollDeploy", types.InstanceStatusDeploy)
+}
+
+func (s *EnvService) AfterDeployAsyncForScrollDeploy(ctx context.Context, svcReq *DeployAsyncReq) error {
+	return s.doDeployForScrollDeploy(ctx, svcReq, "AfterDeployAsyncForScrollDeploy", types.InstanceStatusAfterDeploy)
+}
+
+func (s *EnvService) DeployBeforeDownloadInitAsyncForScrollDeploy(ctx context.Context, svcReq *BaseEnvInitAsyncSvcReq) error {
+	var err error
+	s.entryLog(ctx, "DeployBeforeDownloadInitAsyncForScrollDeploy", svcReq)
+	defer func() {
+		s.exitLog(ctx, "DeployBeforeDownloadInitAsync", svcReq, nil, err)
+	}()
+	// 机器信息入库
+	if err = s.NodeUpdateDeploy(ctx, svcReq.InstanceList, svcReq.TaskId, svcReq.ServiceClusterId); err != nil {
+		return err
+	}
+	// 初始化
+	for _, instInfo := range svcReq.InstanceList {
+		log.Logger.Infof("DeployBeforeDownloadInitAsync instanceid:%s", instInfo.InstanceId)
+		_ = s.DeployBeforeDownloadInitSingle(ctx, svcReq.TaskId, svcReq.Cmd, instInfo, svcReq.Auth)
+	}
+	return nil
+}
+
 func (s *EnvService) NodeUpdateStore(ctx context.Context, instanceList []*types.InstanceInfo, taskId, serviceClusterId int64) error {
 	var err error
 	repo := repository.GetInstanceRepoIns()

@@ -64,6 +64,7 @@ func GetInstrSvcInst() *InstrSvc {
 
 type InstrSvcReq struct {
 	ServiceName      string
+	InstanceTaskId   string
 	ServiceClusterId int64
 	ScheduleTaskId   int64
 	InstrId          int64
@@ -91,6 +92,7 @@ func (s *InstrSvc) ExecAct(ctx context.Context, args interface{}, act types.Acti
 		return nil, errors.New("init service request err")
 	}
 	s.entryLog(ctx, string(act), svcReq)
+	scheduleTaskId := svcReq.ScheduleTaskId
 	defer func() {
 		s.exitLog(ctx, string(act), svcReq, svcResp, err)
 		instrStatus := types.InstrRecStatusSucc
@@ -99,29 +101,32 @@ func (s *InstrSvc) ExecAct(ctx context.Context, args interface{}, act types.Acti
 			instrStatus = types.InstrRecStatusFail
 			msg = err.Error()
 		}
-		_ = s.updateInstrRecord(ctx, svcReq.ScheduleTaskId, svcReq.InstrId, instrStatus, msg)
+		_ = s.updateInstrRecord(ctx, string(scheduleTaskId), svcReq.InstrId, instrStatus, msg)
 	}()
-	err = s.createInstrRecord(ctx, svcReq.ScheduleTaskId, svcReq.InstrId)
+	err = s.createInstrRecord(ctx, string(scheduleTaskId), svcReq.InstrId)
 	if err != nil {
 		return nil, err
 	}
 
+	instanceGroup := svcReq.NodeActSvcReq.InstGroup
+	instruction := svcReq.Instruction
+	serviceClusterId := svcReq.ServiceClusterId
 	switch act {
 	case s.BridgXExpand:
-		svcResp, err = s.bridgXExpandAction(ctx, svcReq.ScheduleTaskId, svcReq.BridgXSvcReq.Count, svcReq.BridgXSvcReq.ClusterName)
+		svcResp, err = s.bridgXExpandAction(ctx, scheduleTaskId, svcReq.BridgXSvcReq.Count, svcReq.BridgXSvcReq.ClusterName)
 	case s.BridgXShrink:
-		svcResp, err = s.bridgXShrinkAction(ctx, svcReq.ScheduleTaskId, svcReq.BridgXSvcReq, svcReq.ServiceClusterId)
+		svcResp, err = s.bridgXShrinkAction(ctx, scheduleTaskId, svcReq.BridgXSvcReq, serviceClusterId)
 	case s.NodeActInitBase:
 		wt := 25 * time.Second
 		log.Logger.Infof("准备机器环境初始化...等待%v", wt)
 		time.Sleep(wt)
-		svcResp, err = s.nodeActInitBaseAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.NodeActSvcReq.Auth, svcReq.ServiceClusterId)
+		svcResp, err = s.nodeActInitBaseAction(ctx, scheduleTaskId, instanceGroup, svcReq.NodeActSvcReq.Auth, serviceClusterId)
 	case s.NodeActInitSvc:
-		svcResp, err = s.nodeActInitSvcAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.NodeActSvcReq.Auth, svcReq.Instruction)
+		svcResp, err = s.nodeActInitSvcAction(ctx, scheduleTaskId, instanceGroup, svcReq.NodeActSvcReq.Auth, instruction)
 	case s.MountSLB:
-		svcResp, err = s.nodeActMountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.InstGroup, svcReq.Instruction)
+		svcResp, err = s.nodeActMountInstAction(ctx, scheduleTaskId, instanceGroup, instruction)
 	case s.UmountSLB:
-		svcResp, err = s.nodeActUmountInstAction(ctx, svcReq.ScheduleTaskId, svcReq.NodeActSvcReq.TaskId, svcReq.NodeActSvcReq.UmountSlbSvcReq, svcReq.Instruction, svcReq.ServiceClusterId)
+		svcResp, err = s.nodeActUmountInstAction(ctx, scheduleTaskId, svcReq.NodeActSvcReq.TaskId, svcReq.NodeActSvcReq.UmountSlbSvcReq, instruction, serviceClusterId)
 	case s.NodeActBeforeDownload:
 		svcResp, err = s.nodeActBeforeDownload(ctx, svcReq)
 	case s.NodeActDownload:
@@ -132,6 +137,44 @@ func (s *InstrSvc) ExecAct(ctx context.Context, args interface{}, act types.Acti
 		svcResp, err = s.nodeActDeploy(ctx, svcReq)
 	case s.NodeActAfterDeploy:
 		svcResp, err = s.nodeActAfterDeploy(ctx, svcReq)
+	default:
+		err = errors.New("no act matched")
+	}
+	return svcResp, err
+}
+
+func (s *InstrSvc) ExecActForScrollDeploy(ctx context.Context, args interface{}, act types.Action) (svcResp interface{}, err error) {
+	svcReq, ok := args.(*InstrSvcReq)
+	if !ok {
+		return nil, errors.New("init service request err")
+	}
+	s.entryLog(ctx, string(act), svcReq)
+	defer func() {
+		s.exitLog(ctx, string(act), svcReq, svcResp, err)
+		instrStatus := types.InstrRecStatusSucc
+		msg := ""
+		if err != nil {
+			instrStatus = types.InstrRecStatusFail
+			msg = err.Error()
+		}
+		_ = s.updateInstrRecord(ctx, svcReq.InstanceTaskId, svcReq.InstrId, instrStatus, msg)
+	}()
+	err = s.createInstrRecord(ctx, svcReq.InstanceTaskId, svcReq.InstrId)
+	if err != nil {
+		return nil, err
+	}
+
+	switch act {
+	case s.NodeActBeforeDownload:
+		svcResp, err = s.nodeActBeforeDownloadForScrollDeploy(ctx, svcReq)
+	case s.NodeActDownload:
+		svcResp, err = s.nodeActDownloadExecutableFileForScrollDeploy(ctx, svcReq)
+	case s.NodeActBeforeDeploy:
+		svcResp, err = s.nodeActBeforeDeployForScrollDeploy(ctx, svcReq)
+	case s.NodeActDeploy:
+		svcResp, err = s.nodeActDeployForScrollDeploy(ctx, svcReq)
+	case s.NodeActAfterDeploy:
+		svcResp, err = s.nodeActAfterDeployForScrollDeploy(ctx, svcReq)
 	default:
 		err = errors.New("no act matched")
 	}
@@ -389,7 +432,7 @@ func (s *InstrSvc) nodeActUmountInstAction(ctx context.Context, schedTaskId, nod
 
 }
 
-func (s *InstrSvc) createInstrRecord(ctx context.Context, taskId, instrId int64) error {
+func (s *InstrSvc) createInstrRecord(ctx context.Context, taskId string, instrId int64) error {
 	var err error
 	obj := &db.InstrRecord{
 		TaskId:      taskId,
@@ -404,7 +447,7 @@ func (s *InstrSvc) createInstrRecord(ctx context.Context, taskId, instrId int64)
 	return nil
 }
 
-func (s *InstrSvc) updateInstrRecord(ctx context.Context, taskId, instrId int64, instrStatus, msg string) error {
+func (s *InstrSvc) updateInstrRecord(ctx context.Context, taskId string, instrId int64, instrStatus, msg string) error {
 	var err error
 	where := map[string]interface{}{
 		"task_id":  taskId,
@@ -885,6 +928,143 @@ func (s *InstrSvc) nodeActAfterDeploy(ctx context.Context, req *InstrSvcReq) (*I
 		Cmd:              req.Instruction.Cmd,
 	}
 	err = GetEnvOpsSvcInst().AfterDeployAsync(ctx, downloadReq)
+	if err != nil {
+		return nil, err
+	}
+	return &InstrSvcResp{}, nil
+}
+
+func (s *InstrSvc) nodeActBeforeDownloadForScrollDeploy(ctx context.Context, req *InstrSvcReq) (*InstrSvcResp, error) {
+	var err error
+	var ret *InstrSvcResp
+
+	baseEnvReq := &BaseEnvInitAsyncSvcReq{
+		ServiceClusterId: req.ServiceClusterId,
+		TaskId:           req.ScheduleTaskId,
+		InstanceList:     req.NodeActSvcReq.InstGroup.InstanceList,
+		Auth:             req.NodeActSvcReq.Auth,
+		Cmd:              req.Instruction.Cmd,
+	}
+	err = GetEnvOpsSvcInst().DeployBeforeDownloadInitAsyncForScrollDeploy(ctx, baseEnvReq)
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+func (s *InstrSvc) nodeActDownloadExecutableFileForScrollDeploy(ctx context.Context, req *InstrSvcReq) (*InstrSvcResp, error) {
+	var err error
+	param := types.DownloadExec{}
+	err = jsoniter.UnmarshalFromString(req.Instruction.Params, &param)
+	if err != nil {
+		return nil, err
+	}
+	cmd, err := template.ParseDownloadExecCmd(template.DownloadParams{
+		DownloadFileUrl: req.NodeActSvcReq.DownloadFileUrl,
+		DeployFilePath:  param.DeployFilePath,
+		DeployFileName:  param.DeployFileName,
+	})
+	instanceList, err := repository.GetInstanceRepoIns().InstsQueryByTaskId(ctx, req.ScheduleTaskId, types.InstanceStatusBase, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(instanceList) == 0 {
+		err = fmt.Errorf("instances not found, taskId:%v", req.ScheduleTaskId)
+		return nil, err
+	}
+
+	downloadReq := &DeployAsyncReq{
+		ServiceClusterId: req.ServiceClusterId,
+		TaskId:           req.ScheduleTaskId,
+		InstanceList:     transform(instanceList),
+		Auth:             req.NodeActSvcReq.Auth,
+		Cmd:              cmd,
+	}
+	err = GetEnvOpsSvcInst().DeployDownloadAsyncForScrollDeploy(ctx, downloadReq)
+	if err != nil {
+		return nil, err
+	}
+	return &InstrSvcResp{}, nil
+}
+
+func (s *InstrSvc) nodeActBeforeDeployForScrollDeploy(ctx context.Context, req *InstrSvcReq) (*InstrSvcResp, error) {
+	var err error
+	instanceList, err := repository.GetInstanceRepoIns().InstsQueryByTaskId(ctx, req.ScheduleTaskId, types.InstanceStatusDownload, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(instanceList) == 0 {
+		err = fmt.Errorf("instances not found, taskId:%v", req.ScheduleTaskId)
+		return nil, err
+	}
+
+	downloadReq := &DeployAsyncReq{
+		ServiceClusterId: req.ServiceClusterId,
+		TaskId:           req.ScheduleTaskId,
+		InstanceList:     transform(instanceList),
+		Auth:             req.NodeActSvcReq.Auth,
+		Cmd:              req.Instruction.Cmd,
+	}
+	err = GetEnvOpsSvcInst().BeforeDeployAsyncForScrollDeploy(ctx, downloadReq)
+	if err != nil {
+		return nil, err
+	}
+	return &InstrSvcResp{}, nil
+}
+
+func (s *InstrSvc) nodeActDeployForScrollDeploy(ctx context.Context, req *InstrSvcReq) (*InstrSvcResp, error) {
+	var err error
+
+	instanceList, err := repository.GetInstanceRepoIns().InstsQueryByTaskId(ctx, req.ScheduleTaskId, types.InstanceStatusBeforeDeploy, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(instanceList) == 0 {
+		err = fmt.Errorf("instances not found, taskId:%v", req.ScheduleTaskId)
+		return nil, err
+	}
+	param := types.DeployParams{}
+	err = jsoniter.UnmarshalFromString(req.Instruction.Params, &param)
+	if err != nil {
+		return nil, err
+	}
+	cmd, err := template.ParseDeployCmd(template.DeployParams{
+		EnvVariables: param.EnvVariables,
+		RawCmd:       req.Instruction.Cmd,
+	})
+	downloadReq := &DeployAsyncReq{
+		ServiceClusterId: req.ServiceClusterId,
+		TaskId:           req.ScheduleTaskId,
+		InstanceList:     transform(instanceList),
+		Auth:             req.NodeActSvcReq.Auth,
+		Cmd:              cmd,
+	}
+	err = GetEnvOpsSvcInst().DeployAsyncForScrollDeploy(ctx, downloadReq)
+	if err != nil {
+		return nil, err
+	}
+	return &InstrSvcResp{}, nil
+}
+
+func (s *InstrSvc) nodeActAfterDeployForScrollDeploy(ctx context.Context, req *InstrSvcReq) (*InstrSvcResp, error) {
+	var err error
+	instanceList, err := repository.GetInstanceRepoIns().InstsQueryByTaskId(ctx, req.ScheduleTaskId, types.InstanceStatusDeploy, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(instanceList) == 0 {
+		err = fmt.Errorf("instances not found, taskId:%v", req.ScheduleTaskId)
+		return nil, err
+	}
+
+	downloadReq := &DeployAsyncReq{
+		ServiceClusterId: req.ServiceClusterId,
+		TaskId:           req.ScheduleTaskId,
+		InstanceList:     transform(instanceList),
+		Auth:             req.NodeActSvcReq.Auth,
+		Cmd:              req.Instruction.Cmd,
+	}
+	err = GetEnvOpsSvcInst().AfterDeployAsyncForScrollDeploy(ctx, downloadReq)
 	if err != nil {
 		return nil, err
 	}
