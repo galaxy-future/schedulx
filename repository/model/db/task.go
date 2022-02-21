@@ -12,6 +12,7 @@ type Task struct {
 	InstCnt        int64      `gorm:"column:inst_cnt" json:"inst_cnt"`    // 本次任务操作的实例数量
 	ExecType       string     `gorm:"column:exec_type" json:"exec_type'"` // 执行方式 manual | auto
 	Msg            string     `gorm:"column:msg" json:"msg"`
+	TaskInfo       string     `gorm:"column:task_info" json:"task_info"`
 	BeginAt        time.Time  `gorm:"column:begin_at" json:"begin_at"`
 	FinishAt       *time.Time `gorm:"column:finish_at" json:"finish_at"`
 	CreateAt       *time.Time `gorm:"column:create_at" json:"create_at"`

@@ -23,6 +23,7 @@ type TmplExpandRequest struct {
 	BaseEnv    *types.BaseEnv     `json:"base_env"`
 	ServiceEnv *types.ServiceEnv  `json:"service_env"`
 	Mount      *types.ParamsMount `json:"mount"`
+	DeployInfo *types.DeployInfo  `json:"deploy_info"`
 }
 
 type TmplUpdateRequest struct {
@@ -32,6 +33,7 @@ type TmplUpdateRequest struct {
 	BaseEnv      *types.BaseEnv     `json:"base_env"`
 	ServiceEnv   *types.ServiceEnv  `json:"service_env"`
 	Mount        *types.ParamsMount `json:"mount"`
+	DeployInfo   *types.DeployInfo  `json:"deploy_info"`
 }
 
 type TmplInfoResponse struct {
@@ -39,10 +41,12 @@ type TmplInfoResponse struct {
 	BaseEnv    *types.BaseEnv     `json:"base_env"`
 	ServiceEnv *types.ServiceEnv  `json:"service_env"`
 	Mount      *types.ParamsMount `json:"mount"`
+	DeployInfo *types.DeployInfo  `json:"deploy_info"`
 }
 
 type TmplExpandResponse struct {
-	TmplId string `json:"tmpl_id"`
+	TmplId       string `json:"tmpl_id"`
+	DeployTmplId string `json:"deploy_tmpl_id"`
 }
 
 type TmplUpdateResponse struct {
@@ -62,6 +66,7 @@ func (h *TmplExpand) Create(ctx *gin.Context) {
 			BaseEnv:    tmplExpandReq.BaseEnv,
 			ServiceEnv: tmplExpandReq.ServiceEnv,
 			Mount:      tmplExpandReq.Mount,
+			DeployInfo: tmplExpandReq.DeployInfo,
 		},
 	}
 	svcResp, err := tmplSvc.ExecAct(ctx, tmplSvcReq, tmplSvc.Create)
@@ -72,7 +77,8 @@ func (h *TmplExpand) Create(ctx *gin.Context) {
 	resp := svcResp.(*service.TemplateSvcResp)
 	log.Logger.Infof("resp info :%v", tool.ToJson(resp))
 	tmplExpandResp := &TmplExpandResponse{
-		TmplId: resp.TmplExpandSvcResp.TmplId,
+		TmplId:       resp.TmplExpandSvcResp.TmplId,
+		DeployTmplId: resp.TmplExpandSvcResp.DeployTmplId,
 	}
 	MkResponse(ctx, http.StatusOK, "success", tmplExpandResp)
 	return
@@ -131,6 +137,7 @@ func (h *TmplExpand) Info(ctx *gin.Context) {
 		BaseEnv:    resp.TmplInfoSvcResp.BaseEnv,
 		ServiceEnv: resp.TmplInfoSvcResp.ServiceEnv,
 		Mount:      resp.TmplInfoSvcResp.Mount,
+		DeployInfo: resp.TmplInfoSvcResp.DeployInfo,
 	}
 	MkResponse(ctx, http.StatusOK, "success", data)
 	return
@@ -149,6 +156,7 @@ func (h *TmplExpand) Update(ctx *gin.Context) {
 			BaseEnv:      tmplUpdateReq.BaseEnv,
 			ServiceEnv:   tmplUpdateReq.ServiceEnv,
 			Mount:        tmplUpdateReq.Mount,
+			DeployInfo:   tmplUpdateReq.DeployInfo,
 		},
 	}
 	svcResp, err := tmplSvc.ExecAct(ctx, tmplSvcReq, tmplSvc.Update)

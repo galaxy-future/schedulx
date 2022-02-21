@@ -28,6 +28,11 @@ type TaskInstancesData struct {
 	Pager        Pager      `json:"pager"`
 }
 
+type InstancesData struct {
+	InstanceList []Instance `json:"instance_list"`
+	Pager        Pager      `json:"pager"`
+}
+
 type Instance struct {
 	InstanceId string `json:"instance_id"`
 	IpInner    string `json:"ip_inner"`
@@ -52,11 +57,21 @@ type ChargeConfig struct {
 }
 
 type ClusterInfo struct {
-	InstanceCore   int           `json:"instance_core"`
-	InstanceMemory int           `json:"instance_memory"`
-	InstanceType   string        `json:"instance_type"`
-	Pwd            string        `json:"password"`
-	UserName       string        `json:"username"`
-	Provider       string        `json:"provider"`
-	ChargeConfig   *ChargeConfig `json:"charge_config"`
+	InstanceType string        `json:"instance_type"`
+	Pwd          string        `json:"password"`
+	UserName     string        `json:"username"`
+	Provider     string        `json:"provider"`
+	ChargeConfig *ChargeConfig `json:"charge_config"`
+	ExtendConfig *ExtendConfig `json:"extend_config"`
+}
+
+type ExtendConfig struct {
+	InstanceCore   int    `json:"core"`
+	InstanceMemory int    `json:"memory"`
+	CpuType        string `json:"cpu_type"`
+}
+
+type ClusterInstanceStat struct {
+	InstanceTypeDesc string `json:"instance_type_desc"`
+	InstanceCount    int    `json:"instance_count"`
 }
