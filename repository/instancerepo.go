@@ -300,7 +300,7 @@ func emptyResp(clusterIds []int64) []ClusterInstanceCount {
 
 func (r *instanceRepo) GetInstanceByIpInner(ctx context.Context, ip string) (ins db.Instance, err error) {
 	err = client.ReadDBCli.WithContext(ctx).Debug().Model(db.Instance{}).
-		Where("ip_inner = ?", ip).
+		Where("ip_inner = ? and instance_status != ? ", ip, types.InstanceStatusDeleted).
 		First(&ins).
 		Error
 	return ins, err
