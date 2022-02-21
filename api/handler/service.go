@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
+	healthCheckcli "github.com/galaxy-future/schedulx/client/healthcheckcli"
+
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/galaxy-future/schedulx/client/bridgxcli"
@@ -198,7 +200,7 @@ func (h *Service) Deploy(ctx *gin.Context) {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
 		return
 	}
-	healthCheck := &service.HealthCheck{}
+	healthCheck := &healthCheckcli.HealthCheck{}
 	err = jsoniter.UnmarshalFromString(httpReq.HealthCheck, healthCheck)
 	if err != nil {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)

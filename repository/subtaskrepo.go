@@ -8,8 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/galaxy-future/schedulx/service"
-
 	"github.com/galaxy-future/schedulx/api/types"
 	"github.com/galaxy-future/schedulx/pkg/tool"
 	"github.com/galaxy-future/schedulx/register/config"
@@ -60,10 +58,10 @@ func (r *SubTaskRepo) CountByCond(ctx context.Context, schedTmplIds []int64, sta
 	return cnt, nil
 }
 
-func (r *SubTaskRepo) CreateSubTask(instanceList []*types.InstanceInfo, svcReq *service.ServiceDeploySvcReq, schedTaskId int64) ([]*db.SubTask, error) {
+func (r *SubTaskRepo) CreateSubTask(instanceList []*types.InstanceInfo, maxSurge string, schedTaskId int64) ([]*db.SubTask, error) {
 	var err error
 	total := uint64(len(instanceList))
-	split := strings.Split(svcReq.MaxSurge, ",")
+	split := strings.Split(maxSurge, ",")
 	subTaskList := make([]*db.SubTask, len(split))
 	stepLens := make([]int, len(split))
 	stepLens[0] = 0

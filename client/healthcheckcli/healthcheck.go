@@ -9,14 +9,23 @@ import (
 	"time"
 
 	"github.com/galaxy-future/schedulx/api/types"
-	"github.com/galaxy-future/schedulx/service"
-
 	"github.com/galaxy-future/schedulx/register/config/log"
 	"github.com/go-resty/resty/v2"
 )
 
 type HealthCheckClient struct {
 	httpClient *resty.Client
+}
+
+type HealthCheck struct {
+	Mode               string `json:"mode'"`
+	Path               string `json:"path"`
+	Port               int    `json:"port"`
+	InitTime           int    `json:"init_time"`
+	TimeoutTime        int    `json:"timeout_time"`
+	HealthThreshold    int    `json:"health_threshold"`
+	UnhealthyThreshold int    `json:"unhealthy_threshold"`
+	CheckPeriod        int    `json:"check_period"`
 }
 
 var healthCheckCli *HealthCheckClient
@@ -31,7 +40,7 @@ func GetHealthCheckXCli(ctx context.Context) *HealthCheckClient {
 	return healthCheckCli
 }
 
-func (c *HealthCheckClient) HealthCheck(ctx context.Context, healthCheck *service.HealthCheck, instanceInfo *types.InstanceInfo) (err error) {
+func (c *HealthCheckClient) HealthCheck(ctx context.Context, healthCheck *HealthCheck, instanceInfo *types.InstanceInfo) (err error) {
 	url := instanceInfo.IpInner + ":" + strconv.Itoa(healthCheck.Port) + healthCheck.Path
 	rr, err := c.httpClient.R().Get(url)
 	if err != nil {

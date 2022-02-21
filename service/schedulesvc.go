@@ -62,26 +62,15 @@ type ServiceShrinkSvcReq struct {
 }
 
 type ServiceDeploySvcReq struct {
-	ServiceClusterId int64        `json:"service_cluster_id'"`
-	DownloadFileUrl  string       `json:"download_file_url"`
-	Count            int64        `json:"count"`
-	DeployType       string       `json:"deploy_type"` // The Type of deploy : all or scroll
-	FailSurge        int          `json:"fail_surge"`  // percent, 20 means 20%, valid [1, 100] . The deployment will be terminated,If the proportion of failed instances more than fail surge.
-	MaxSurge         string       `json:"max_surge"`   // percent, 20 means 20%, valid [1, 100] . The ratio of rolling deployments, use ',' to separate each round.
-	ExecType         string       `json:"exec_type"`
-	HealthCheck      *HealthCheck `json:"health_check"`
-	Rollback         bool         `json:"rollback"`
-}
-
-type HealthCheck struct {
-	Mode               string `json:"mode'"`
-	Path               string `json:"path"`
-	Port               int    `json:"port"`
-	InitTime           int    `json:"init_time"`
-	TimeoutTime        int    `json:"timeout_time"`
-	HealthThreshold    int    `json:"health_threshold"`
-	UnhealthyThreshold int    `json:"unhealthy_threshold"`
-	CheckPeriod        int    `json:"check_period"`
+	ServiceClusterId int64                       `json:"service_cluster_id'"`
+	DownloadFileUrl  string                      `json:"download_file_url"`
+	Count            int64                       `json:"count"`
+	DeployType       string                      `json:"deploy_type"` // The Type of deploy : all or scroll
+	FailSurge        int                         `json:"fail_surge"`  // percent, 20 means 20%, valid [1, 100] . The deployment will be terminated,If the proportion of failed instances more than fail surge.
+	MaxSurge         string                      `json:"max_surge"`   // percent, 20 means 20%, valid [1, 100] . The ratio of rolling deployments, use ',' to separate each round.
+	ExecType         string                      `json:"exec_type"`
+	HealthCheck      *healthCheckcli.HealthCheck `json:"health_check"`
+	Rollback         bool                        `json:"rollback"`
 }
 
 type ServiceExpandSvcResp struct {
@@ -392,7 +381,7 @@ func (s *ScheduleSvc) deployActionForScroll(ctx context.Context, svcReq *Service
 	subTaskRepo := repository.SubTaskRepo{}
 	instanceList := ret.NodeActSvcResp.InstGroup.InstanceList
 	total := uint64(len(instanceList))
-	scheduleSubTaskList, err := subTaskRepo.CreateSubTask(instanceList, svcReq, scheduleTaskId)
+	scheduleSubTaskList, err := subTaskRepo.CreateSubTask(instanceList, svcReq.MaxSurge, scheduleTaskId)
 	if err != nil {
 		return nil, err
 	}
