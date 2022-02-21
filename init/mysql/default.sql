@@ -37,7 +37,7 @@ DROP TABLE IF EXISTS `instr_record`;
 CREATE TABLE `instr_record`
 (
     `id`           bigint(20) NOT NULL AUTO_INCREMENT,
-    `task_id`      bigint(20) NOT NULL COMMENT 'task主键',
+    `task_id`      varchar(255) NOT NULL COMMENT 'task主键, 滚动部署此为instance_id',
     `instr_status` varchar(32)  NOT NULL COMMENT '启动运行结果 成功，失败',
     `msg`          varchar(128) NOT NULL COMMENT '系统信息',
     `instr_id`     bigint(20) NOT NULL COMMENT '指令 id',
@@ -170,6 +170,28 @@ CREATE TABLE `task`
     PRIMARY KEY (`id`),
     KEY                `idx_sched_tmpl_id` (`sched_tmpl_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='调度任务表';
+
+DROP TABLE IF EXISTS `sub_task`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `sub_task`
+(
+    `id`               bigint(20) NOT NULL AUTO_INCREMENT,
+    `super_task_id`    bigint(20) NOT NULL COMMENT '关联的父任务 id',
+    `relation_task_id` varchar(128) NOT NULL COMMENT '{"nodeact_task_id":111,"brigx_task_id":222}关联上下游任务id',
+    `task_status`      varchar(32)  NOT NULL COMMENT '任务状态：init, running, succ, fail',
+    `task_step`        varchar(32)  NOT NULL COMMENT '任务进度',
+    `max_surge`        tinyint(4) NOT NULL COMMENT '滚动发布的比例',
+    `instance_list`    varchar(2048) NULL DEFAULT NULL COMMENT '本次任务操作的实例信息',
+    `msg`              varchar(128) NOT NULL COMMENT '系统信息',
+    `task_info`        varchar(1024) NULL COMMENT '任务信息',
+    `begin_at`         timestamp NULL DEFAULT NULL COMMENT '任务开始时间',
+    `finish_at`        timestamp NULL DEFAULT NULL COMMENT '任务结束时间',
+    `create_at`        timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_at`        timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY                `idx_sched_tmpl_id` (`super_task_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='调度子任务表';
 
 -- integration: table
 CREATE TABLE `integration`

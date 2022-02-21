@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/galaxy-future/schedulx/client/bridgxcli"
 
 	"github.com/galaxy-future/schedulx/api/types"
@@ -43,6 +45,9 @@ type ServiceDeployHttpRequest struct {
 	DownloadFileUrl  string `form:"download_file_url" json:"download_file_url"`
 	Count            int64  `form:"count" json:"count"`
 	DeployType       string `form:"deploy_type" json:"deploy_type"` // 部署方式 all | scroll
+	FailSurge        int    `form:"fail_surge" json:"fail_surge"`   // percent, 20 means 20%, valid [1, 100] . The deployment will be terminated,If the proportion of failed instances more than fail surge.
+	MaxSurge         string `form:"max_surge" json:"max_surge"`     // percent, 20 means 20%, valid [1, 100] . The ratio of rolling deployments, use ',' to separate each round.
+	HealthCheck      string `form:"health_check" json:"health_check"`
 	ExecType         string `form:"exec_type" json:"exec_type"`
 	Rollback         bool   `form:"rollback" json:"rollback"`
 }
@@ -193,6 +198,12 @@ func (h *Service) Deploy(ctx *gin.Context) {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
 		return
 	}
+	healthCheck := &service.HealthCheck{}
+	err = jsoniter.UnmarshalFromString(httpReq.HealthCheck, healthCheck)
+	if err != nil {
+		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
+		return
+	}
 	serviceCluster, err := repository.GetServiceRepoInst().GetServiceCluster(ctx, clusterId)
 	if err != nil {
 		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
@@ -219,6 +230,9 @@ func (h *Service) Deploy(ctx *gin.Context) {
 			Count:            int64(instanceCount),
 			ExecType:         httpReq.ExecType,
 			DeployType:       httpReq.DeployType,
+			FailSurge:        httpReq.FailSurge,
+			MaxSurge:         httpReq.MaxSurge,
+			HealthCheck:      healthCheck,
 			Rollback:         httpReq.Rollback,
 		},
 	}

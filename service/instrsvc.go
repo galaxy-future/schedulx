@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -93,6 +94,7 @@ func (s *InstrSvc) ExecAct(ctx context.Context, args interface{}, act types.Acti
 	}
 	s.entryLog(ctx, string(act), svcReq)
 	scheduleTaskId := svcReq.ScheduleTaskId
+	scheduleTaskIdStr := strconv.FormatInt(scheduleTaskId, 10)
 	defer func() {
 		s.exitLog(ctx, string(act), svcReq, svcResp, err)
 		instrStatus := types.InstrRecStatusSucc
@@ -101,9 +103,9 @@ func (s *InstrSvc) ExecAct(ctx context.Context, args interface{}, act types.Acti
 			instrStatus = types.InstrRecStatusFail
 			msg = err.Error()
 		}
-		_ = s.updateInstrRecord(ctx, string(scheduleTaskId), svcReq.InstrId, instrStatus, msg)
+		_ = s.updateInstrRecord(ctx, scheduleTaskIdStr, svcReq.InstrId, instrStatus, msg)
 	}()
-	err = s.createInstrRecord(ctx, string(scheduleTaskId), svcReq.InstrId)
+	err = s.createInstrRecord(ctx, scheduleTaskIdStr, svcReq.InstrId)
 	if err != nil {
 		return nil, err
 	}

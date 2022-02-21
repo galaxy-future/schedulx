@@ -171,15 +171,14 @@ func (s *EnvService) doDeployForScrollDeploy(ctx context.Context, svcReq *Deploy
 	}()
 
 	//初始化
-	log.Logger.Infof("start %v async", method)
 	for _, instInfo := range svcReq.InstanceList {
-		log.Logger.Infof("async %v instanceid:%s", method, instInfo.InstanceId)
+		log.Logger.Infof("%v instanceid:%s", method, instInfo.InstanceId)
 		e := s.ExecCmdWithUpdateInstanceStatus(ctx, svcReq.TaskId, svcReq.Cmd, instInfo, svcReq.Auth, instanceStatus)
 		if err == nil && e != nil {
 			err = e
 		}
 	}
-	log.Logger.Infof("end %v async", method)
+	log.Logger.Infof("end %v", method)
 	return err
 }
 
@@ -203,7 +202,7 @@ func (s *EnvService) DeployBeforeDownloadInitAsyncForScrollDeploy(ctx context.Co
 	var err error
 	s.entryLog(ctx, "DeployBeforeDownloadInitAsyncForScrollDeploy", svcReq)
 	defer func() {
-		s.exitLog(ctx, "DeployBeforeDownloadInitAsync", svcReq, nil, err)
+		s.exitLog(ctx, "DeployBeforeDownloadInitAsyncForScrollDeploy", svcReq, nil, err)
 	}()
 	// 机器信息入库
 	if err = s.NodeUpdateDeploy(ctx, svcReq.InstanceList, svcReq.TaskId, svcReq.ServiceClusterId); err != nil {
@@ -211,10 +210,13 @@ func (s *EnvService) DeployBeforeDownloadInitAsyncForScrollDeploy(ctx context.Co
 	}
 	// 初始化
 	for _, instInfo := range svcReq.InstanceList {
-		log.Logger.Infof("DeployBeforeDownloadInitAsync instanceid:%s", instInfo.InstanceId)
-		_ = s.DeployBeforeDownloadInitSingle(ctx, svcReq.TaskId, svcReq.Cmd, instInfo, svcReq.Auth)
+		log.Logger.Infof("DeployBeforeDownloadInitAsyncForScrollDeploy instanceid:%s", instInfo.InstanceId)
+		e := s.DeployBeforeDownloadInitSingle(ctx, svcReq.TaskId, svcReq.Cmd, instInfo, svcReq.Auth)
+		if err == nil && e != nil {
+			err = e
+		}
 	}
-	return nil
+	return err
 }
 
 func (s *EnvService) NodeUpdateStore(ctx context.Context, instanceList []*types.InstanceInfo, taskId, serviceClusterId int64) error {

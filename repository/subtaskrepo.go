@@ -2,8 +2,13 @@ package repository
 
 import (
 	"context"
+	"errors"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/galaxy-future/schedulx/service"
 
 	"github.com/galaxy-future/schedulx/api/types"
 	"github.com/galaxy-future/schedulx/pkg/tool"
@@ -27,7 +32,7 @@ func GetSubTaskRepoInst() *SubTaskRepo {
 	return subTaskRepoInst
 }
 
-func (r *SubTaskRepo) GetLastExpandSuccSubTask(ctx context.Context, tmplId int64) (*db.Task, error) {
+func (r *SubTaskRepo) GetLastSuccessSubTask(ctx context.Context, tmplId int64) (*db.Task, error) {
 	var err error
 	where := map[string]interface{}{
 		"sched_tmpl_id": tmplId,
@@ -55,79 +60,46 @@ func (r *SubTaskRepo) CountByCond(ctx context.Context, schedTmplIds []int64, sta
 	return cnt, nil
 }
 
-func (r *SubTaskRepo) CreateSubTask(ipList []*types.InstanceInfo, stepLen int, schedTaskId int64, taskInfo string, isRollback bool) ([]*db.SubTask, error) {
+func (r *SubTaskRepo) CreateSubTask(instanceList []*types.InstanceInfo, svcReq *service.ServiceDeploySvcReq, schedTaskId int64) ([]*db.SubTask, error) {
 	var err error
-	/*taskStatus := types.TaskStatusRunning
-	if isRollback {
-		taskStatus = types.TaskStatusRollingBack
-	}
-
-	total := len(ipList)
-	if stepLen < 1 {
-		stepLen = 1
-	}
-
-	batchNum := total / stepLen
-	if total%stepLen != 0 {
-		batchNum++
-	}
-
-	for i := 0; i < batchNum; i++ {
-		start, end := i*stepLen, i*stepLen+stepLen
-		if end > total {
-			end = total
+	total := uint64(len(instanceList))
+	split := strings.Split(svcReq.MaxSurge, ",")
+	subTaskList := make([]*db.SubTask, len(split))
+	stepLens := make([]int, len(split))
+	stepLens[0] = 0
+	for i, s := range split {
+		surge, err := strconv.Atoi(s)
+		//max surge check
+		if surge <= 0 || surge > 100 {
+			log.Logger.Error(err.Error())
+			err = errors.New("max surge error")
+			return nil, err
+		}
+		stepLen := int(float64(total) * float64(surge) / 100.0)
+		stepLens = append(stepLens, stepLens[i]+stepLen)
+		start, end := stepLens[i], stepLens[i]+stepLen
+		if end > int(total) {
+			end = int(total)
 		}
 
-		part := ipList[start:end]
-		ids := make([]int, len(part))
-		for i, ns := range part {
-			ids[i] = ns.Node.Id
+		instanceList, _ := jsoniter.MarshalToString(instanceList[start:end])
+		newSubTask := &db.SubTask{
+			SuperTaskId:  schedTaskId,
+			TaskStatus:   types.TaskStatusRunning,
+			TaskStep:     types.TaskStepInit,
+			MaxSurge:     surge,
+			InstanceList: instanceList,
+			TaskInfo:     strconv.Itoa(i),
+			BeginAt:      time.Now(),
 		}
-
-		idsBytes, _ := json.Marshal(ids)
-		idsStr := string(idsBytes)
-
-		batch := &models.FlowBatch{
-			Flow:        instance,
-			Status:      STATUS_INIT,
-			Step:        -1, // not started
-			Nodes:       idsStr,
-			CreatedTime: time.Now(),
-			UpdatedTime: time.Now(),
-		}
-
-		err := flowService.InsertBase(batch)
-		if err != nil {
-			return err
-		}
-
-		// update node states
-		corrId := fmt.Sprintf("%d-%d", instance.Id, batch.Id)
-		for _, ns := range part {
-			ns.CorrId = corrId
-			ns.Batch = batch
-
-			flowService.UpdateBase(ns)
-		}
+		subTaskList = append(subTaskList, newSubTask)
 	}
 
-	newTask := &db.SubTask{
-		//SuperTaskId: schedTmplId,
-		//Operator:    operator,
-		//ExecType:    execType,
-		//InstCnt:     instCnt,
-		TaskStatus: taskStatus,
-		TaskStep:   types.TaskStepInit,
-		BeginAt:    time.Now(),
-	}
-	if taskInfo != "" {
-		newTask.TaskInfo = taskInfo
-	}
-	if err = db.Create(newTask, nil); err != nil {
+	if err = db.BatchCreate(subTaskList, nil); err != nil {
 		log.Logger.Error(err)
-		return 0, err
-	}*/
-	return nil, err
+		return nil, err
+	}
+	return subTaskList, err
 }
 
 func (r *SubTaskRepo) UpdateSubTaskRelationTaskId(ctx context.Context, taskId int64, field string, relationTaskId int64) error {
@@ -232,7 +204,7 @@ func (r *SubTaskRepo) GetSubTask(ctx context.Context, taskId int64) (*db.Task, e
 
 func (r *SubTaskRepo) GetBridgXSubTaskId(ctx context.Context, taskId int64) (int64, error) {
 	var err error
-	task, err := r.GetTask(ctx, taskId)
+	task, err := r.GetSubTask(ctx, taskId)
 	if err != nil {
 		log.Logger.Error(err)
 		return 0, err

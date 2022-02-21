@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/galaxy-future/schedulx/pkg/nodeact"
-	"github.com/galaxy-future/schedulx/register/config"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
+
+	healthCheckcli "github.com/galaxy-future/schedulx/client/healthcheckcli"
+	"github.com/galaxy-future/schedulx/pkg/nodeact"
+	"github.com/galaxy-future/schedulx/register/config"
 
 	"github.com/spf13/cast"
 
@@ -59,12 +62,26 @@ type ServiceShrinkSvcReq struct {
 }
 
 type ServiceDeploySvcReq struct {
-	ServiceClusterId int64  `json:"service_cluster_id'"`
-	DownloadFileUrl  string `json:"download_file_url"`
-	Count            int64  `json:"count"`
-	DeployType       string `json:"deploy_type"` // 部署方式 all | scroll
-	ExecType         string `json:"exec_type"`
-	Rollback         bool   `json:"rollback"`
+	ServiceClusterId int64        `json:"service_cluster_id'"`
+	DownloadFileUrl  string       `json:"download_file_url"`
+	Count            int64        `json:"count"`
+	DeployType       string       `json:"deploy_type"` // The Type of deploy : all or scroll
+	FailSurge        int          `json:"fail_surge"`  // percent, 20 means 20%, valid [1, 100] . The deployment will be terminated,If the proportion of failed instances more than fail surge.
+	MaxSurge         string       `json:"max_surge"`   // percent, 20 means 20%, valid [1, 100] . The ratio of rolling deployments, use ',' to separate each round.
+	ExecType         string       `json:"exec_type"`
+	HealthCheck      *HealthCheck `json:"health_check"`
+	Rollback         bool         `json:"rollback"`
+}
+
+type HealthCheck struct {
+	Mode               string `json:"mode'"`
+	Path               string `json:"path"`
+	Port               int    `json:"port"`
+	InitTime           int    `json:"init_time"`
+	TimeoutTime        int    `json:"timeout_time"`
+	HealthThreshold    int    `json:"health_threshold"`
+	UnhealthyThreshold int    `json:"unhealthy_threshold"`
+	CheckPeriod        int    `json:"check_period"`
 }
 
 type ServiceExpandSvcResp struct {
@@ -346,14 +363,13 @@ func (s *ScheduleSvc) deployActionForAll(ctx context.Context, svcReq *ServiceDep
 func (s *ScheduleSvc) deployActionForScroll(ctx context.Context, svcReq *ServiceDeploySvcReq) (*ScheduleSvcResp, error) {
 	var err error
 	resp := &ServiceDeploySvcResp{}
-	// 获取 tmpl
 	tmplRepo := repository.GetScheduleTemplateRepoInst()
 	tmpl, err := tmplRepo.GetSchedTmplBySvcClusterId(svcReq.ServiceClusterId, constant.ScheduleTypeDeploy)
 	log.Logger.Infof("deployAction | %+v", tmpl)
 	if err != nil {
 		return nil, err
 	}
-	// 创建 task
+
 	userName := ctx.Value(constant.CtxUserNameKey)
 	taskRepo := repository.TaskRepo{}
 	taskInfo, _ := jsoniter.MarshalToString(svcReq)
@@ -368,46 +384,26 @@ func (s *ScheduleSvc) deployActionForScroll(ctx context.Context, svcReq *Service
 		}
 	}()
 
-	deployInfo := &types.DeployInfo{}
-	err = jsoniter.UnmarshalFromString(tmpl.DeployMode, deployInfo)
-	if err != nil {
-		log.Logger.Error(err.Error())
-		err = errors.New("schedule_template.deployInfo Unmarshal exception")
-		return nil, err
-	}
-
-	//max surge check
-	maxSurge := deployInfo.MaxSurge
-	if maxSurge < 0 || maxSurge > 100 {
-		log.Logger.Error(err.Error())
-		err = errors.New("max surge error")
-		return nil, err
-	}
-
-	stepLen := int(float64(svcReq.Count) * float64(maxSurge) / 100.0)
-	if deployInfo.MaxNum > stepLen {
-		stepLen = deployInfo.MaxNum
-	}
-
-	if stepLen == 0 {
-		log.Logger.Error(err.Error())
-		err = errors.New("deployment step length error")
-		return nil, err
-	}
-
+	// Create subtask for the given task.
 	ret, err := getBridgxInstances(ctx, &InstrSvcReq{ServiceClusterId: tmpl.ServiceClusterId})
 	if err != nil {
 		return nil, err
 	}
-
-	// Create sub-task for the given task.
 	subTaskRepo := repository.SubTaskRepo{}
 	instanceList := ret.NodeActSvcResp.InstGroup.InstanceList
-	scheduleSubTaskList, err := subTaskRepo.CreateSubTask(instanceList, stepLen, scheduleTaskId, taskInfo, svcReq.Rollback)
+	total := uint64(len(instanceList))
+	scheduleSubTaskList, err := subTaskRepo.CreateSubTask(instanceList, svcReq, scheduleTaskId)
 	if err != nil {
 		return nil, err
 	}
 
+	var instrGroup []int64
+	err = jsoniter.Unmarshal([]byte(tmpl.InstrGroup), &instrGroup)
+	if err != nil {
+		log.Logger.Error(err.Error())
+		err = errors.New("schedule_template.instr_group Unmarshal exception")
+		return nil, err
+	}
 	instrSvcReq := &InstrSvcReq{
 		ServiceName:      tmpl.ServiceName,
 		ServiceClusterId: tmpl.ServiceClusterId,
@@ -418,37 +414,31 @@ func (s *ScheduleSvc) deployActionForScroll(ctx context.Context, svcReq *Service
 		},
 	}
 
-	// 获取指令集
-	var instrGroup []int64
-	err = jsoniter.Unmarshal([]byte(tmpl.InstrGroup), &instrGroup)
-	if err != nil {
-		log.Logger.Error(err.Error())
-		err = errors.New("schedule_template.instr_group Unmarshal exception")
-		return nil, err
-	}
-
 	go func() {
-		// 1.2 更新总任务状态 成功/部分成功/失败
+		var asyncErr error
+		var failNum uint64 = 0
+		needRollBack := false
+		taskStatus := types.TaskStatusSuccess
 		defer func() {
-			var asyncErr error
-			defer func() {
-				if r := recover(); r != nil {
-					log.Logger.Errorf("%s", debug.Stack())
-					asyncErr = config.ErrSysPanic
+			if r := recover(); r != nil {
+				log.Logger.Errorf("%s", debug.Stack())
+				asyncErr = config.ErrSysPanic
+			}
+			if asyncErr != nil {
+				if needRollBack {
+					taskStatus = types.TaskStatusRollingBack
 				}
-				if asyncErr != nil {
-					_ = taskRepo.UpdateTaskStatus(ctx, scheduleTaskId, types.TaskStatusFail, asyncErr.Error())
-					return
-				}
-				_ = taskRepo.UpdateTaskStatus(ctx, scheduleTaskId, types.TaskStatusSuccess, "")
-			}()
+				taskStatus = types.TaskStatusFail
+				_ = taskRepo.UpdateTaskStatus(ctx, scheduleTaskId, taskStatus, err.Error())
+				return
+			}
+			_ = taskRepo.UpdateTaskStatus(ctx, scheduleTaskId, taskStatus, "")
 		}()
 
-		// 1.1 批处理子任务集合 此处不可并行处理，当一批机器处理完成再进行下一步。
-		var asyncErr error
+		// batch processing subtasks
+		log.Logger.Info("start deploy instance async")
 		for _, subTask := range scheduleSubTaskList {
 			var wg sync.WaitGroup
-			log.Logger.Info("start deploy instance async")
 			var instanceList []*types.InstanceInfo
 			err := jsoniter.UnmarshalFromString(subTask.InstanceList, instanceList)
 			if err != nil {
@@ -457,11 +447,12 @@ func (s *ScheduleSvc) deployActionForScroll(ctx context.Context, svcReq *Service
 				return
 			}
 			subTaskId := subTask.Id
-			instrSvcReq.NodeActSvcReq.InstanceCount = subTask.InstCnt
+			instrSvcReq.NodeActSvcReq.InstanceCount = int64(len(instanceList))
 			instrSvcReq.NodeActSvcReq.TaskId = subTaskId
 			instrSvcReq.ScheduleTaskId = subTaskId
+			_ = subTaskRepo.UpdateSubTaskStatus(ctx, subTaskId, types.TaskStatusRunning, "")
 
-			// 2.1 处理子任务下所有机器实例
+			// process all instances under subtasks
 			instanceGroup := &nodeact.InstanceGroup{TaskId: ret.NodeActSvcResp.InstGroup.TaskId}
 			for _, instInfo := range instanceList {
 				wg.Add(1)
@@ -469,54 +460,50 @@ func (s *ScheduleSvc) deployActionForScroll(ctx context.Context, svcReq *Service
 				instanceId := instInfo.InstanceId
 				instrSvcReq.InstanceTaskId = instanceId
 				instrSvcReq.NodeActSvcReq.InstGroup = instanceGroup
-				log.Logger.Infof("async deploy instance instanceid:%s", instanceId)
-				// 依次执行单机所有指令集
+				log.Logger.Infof("async scroll deploy instance instanceid:%s", instanceId)
+
+				// Execute all instruction sets of each machine in turn
+				instInfo := instInfo
 				go func(instance *types.InstanceInfo) {
 					for _, instrId := range instrGroup {
 						instrSvcReq.InstrId = instrId
-						// 3.2 下面方法需要存储机器在每一步的成功失败状态
 						if err := s.doInstrForScrollDeploy(ctx, instrSvcReq); err != nil {
 							asyncErr = err
+							atomic.AddUint64(&failNum, 1)
 							log.Logger.Error("doInstr err: ", err)
 							break
 						}
 					}
-					// 更新机器状态
-					if err == nil {
-						// 3.3 执行健康监测
-
-						// 3.4 更新机器健康检查信息
-
-						// 更新数据库字段为 完成健康检测
-						if err != nil {
-							_, _ = repository.GetInstanceRepoIns().UpdateStatus(ctx, types.InstanceStatusHealthCheckFail, subTaskId, instance.IpInner)
-							return
-						}
-						_, _ = repository.GetInstanceRepoIns().UpdateStatus(ctx, types.InstanceStatusHealthCheck, subTaskId, instance.IpInner)
+					var checkErr error
+					checkErr = healthCheckcli.GetHealthCheckXCli(ctx).HealthCheck(ctx, svcReq.HealthCheck, instInfo)
+					if checkErr != nil {
+						_, _ = repository.GetInstanceRepoIns().UpdateStatus(ctx, types.InstanceStatusHealthCheckFail, subTaskId, instance.IpInner)
+						return
 					}
+					_, _ = repository.GetInstanceRepoIns().UpdateStatus(ctx, types.InstanceStatusHealthCheck, subTaskId, instance.IpInner)
 					wg.Done()
 				}(instInfo)
 			}
 
-			// 2.2 更新子任务状态 成功/部分成功/失败
 			wg.Wait()
-			log.Logger.Info("end deploy instance async")
+			if failNum/total*100 >= uint64(svcReq.FailSurge) {
+				needRollBack = true
+			}
 			if r := recover(); r != nil {
 				log.Logger.Errorf("%s", debug.Stack())
 				asyncErr = config.ErrSysPanic
 			}
 			if asyncErr != nil {
-				_ = subTaskRepo.UpdateSubTaskStatus(ctx, subTaskId, types.TaskStatusFail, asyncErr.Error())
+				if needRollBack {
+					taskStatus = types.TaskStatusRollingBack
+				}
+				taskStatus = types.TaskStatusFail
+				_ = subTaskRepo.UpdateSubTaskStatus(ctx, subTaskId, taskStatus, asyncErr.Error())
 				break
 			}
-			_ = subTaskRepo.UpdateSubTaskStatus(ctx, subTaskId, types.TaskStatusSuccess, "")
+			_ = subTaskRepo.UpdateSubTaskStatus(ctx, subTaskId, taskStatus, "")
 		}
-
-		if asyncErr != nil {
-			_ = taskRepo.UpdateTaskStep(ctx, scheduleTaskId, types.TaskStatusFail, err.Error())
-			return
-		}
-		_ = taskRepo.UpdateTaskStep(ctx, scheduleTaskId, types.TaskStatusSuccess, "")
+		log.Logger.Info("end scroll deploy instance async")
 	}()
 
 	resp.TaskId = scheduleTaskId
