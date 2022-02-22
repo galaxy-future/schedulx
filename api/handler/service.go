@@ -9,8 +9,6 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/galaxy-future/schedulx/client/bridgxcli"
-
 	"github.com/galaxy-future/schedulx/api/types"
 	"github.com/galaxy-future/schedulx/client/bridgxcli"
 	"github.com/galaxy-future/schedulx/register/config/log"
