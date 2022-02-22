@@ -50,5 +50,12 @@ type ResourceInfo struct {
 }
 
 type HealthCheck struct {
-	Mode string
+	Mode               string `json:"mode'"`
+	Path               string `json:"path"`
+	Port               int    `json:"port"`
+	InitTime           int    `json:"init_time"`
+	TimeoutTime        int    `json:"timeout_time"`
+	HealthThreshold    int    `json:"health_threshold"`
+	UnhealthyThreshold int    `json:"unhealthy_threshold"`
+	CheckPeriod        int    `json:"check_period"`
 }
