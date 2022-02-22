@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,14 +31,14 @@ func GetSubTaskRepoInst() *SubTaskRepo {
 	return subTaskRepoInst
 }
 
-func (r *SubTaskRepo) GetLastSuccessSubTask(ctx context.Context, tmplId int64) (*db.Task, error) {
+func (r *SubTaskRepo) GetLastSuccessSubTask(ctx context.Context, tmplId int64) (*db.SubTask, error) {
 	var err error
 	where := map[string]interface{}{
 		"sched_tmpl_id": tmplId,
 		"task_status":   types.TaskStatusSuccess,
 	}
 	log.Logger.Infof("GetLastExpandSuccTask | %+v", where)
-	obj := &db.Task{}
+	obj := &db.SubTask{}
 	err = db.QueryLast(where, obj)
 	if err != nil {
 		log.Logger.Error(err)
@@ -52,7 +53,7 @@ func (r *SubTaskRepo) CountByCond(ctx context.Context, schedTmplIds []int64, sta
 		"task_status":   status,
 	}
 	var cnt int64
-	if err := client.ReadDBCli.Where(where).Model(&db.Task{}).Count(&cnt).Error; err != nil {
+	if err := client.ReadDBCli.Where(where).Model(&db.SubTask{}).Count(&cnt).Error; err != nil {
 		return 0, err
 	}
 	return cnt, nil
@@ -62,9 +63,8 @@ func (r *SubTaskRepo) CreateSubTask(instanceList []*types.InstanceInfo, maxSurge
 	var err error
 	total := uint64(len(instanceList))
 	split := strings.Split(maxSurge, ",")
-	subTaskList := make([]*db.SubTask, len(split))
-	stepLens := make([]int, len(split))
-	stepLens[0] = 0
+	subTaskList := make([]*db.SubTask, 0, len(split))
+	stepLens := make([]int, 1, len(split)+1)
 	for i, s := range split {
 		surge, err := strconv.Atoi(s)
 		//max surge check
@@ -73,9 +73,12 @@ func (r *SubTaskRepo) CreateSubTask(instanceList []*types.InstanceInfo, maxSurge
 			err = errors.New("max surge error")
 			return nil, err
 		}
-		stepLen := int(float64(total) * float64(surge) / 100.0)
+		stepLen := int(math.Ceil(float64(total) * float64(surge) / 100.0))
 		stepLens = append(stepLens, stepLens[i]+stepLen)
 		start, end := stepLens[i], stepLens[i]+stepLen
+		if start > int(total) {
+			break
+		}
 		if end > int(total) {
 			end = int(total)
 		}
@@ -83,7 +86,7 @@ func (r *SubTaskRepo) CreateSubTask(instanceList []*types.InstanceInfo, maxSurge
 		instanceList, _ := jsoniter.MarshalToString(instanceList[start:end])
 		newSubTask := &db.SubTask{
 			SuperTaskId:  schedTaskId,
-			TaskStatus:   types.TaskStatusRunning,
+			TaskStatus:   types.TaskStatusInit,
 			TaskStep:     types.TaskStepInit,
 			MaxSurge:     surge,
 			InstanceList: instanceList,
@@ -102,7 +105,7 @@ func (r *SubTaskRepo) CreateSubTask(instanceList []*types.InstanceInfo, maxSurge
 
 func (r *SubTaskRepo) UpdateSubTaskRelationTaskId(ctx context.Context, taskId int64, field string, relationTaskId int64) error {
 	var err error
-	obj := &db.Task{}
+	obj := &db.SubTask{}
 	err = db.Get(taskId, obj)
 	if err != nil {
 		log.Logger.Error(err)
@@ -129,7 +132,7 @@ func (r *SubTaskRepo) UpdateSubTaskRelationTaskId(ctx context.Context, taskId in
 	where := map[string]interface{}{
 		"id": taskId,
 	}
-	rowEffected, err := db.Updates(&db.Task{}, where, data, nil)
+	rowEffected, err := db.Updates(&db.SubTask{}, where, data, nil)
 	if err != nil {
 		log.Logger.Error(err)
 		return err
@@ -152,7 +155,7 @@ func (r *SubTaskRepo) UpdateSubTaskStatus(ctx context.Context, taskId int64, tas
 	where := map[string]interface{}{
 		"id": taskId,
 	}
-	rowEffected, err := db.Updates(&db.Task{}, where, data, nil)
+	rowEffected, err := db.Updates(&db.SubTask{}, where, data, nil)
 	if err != nil {
 		log.Logger.Error(err)
 		return err
@@ -175,7 +178,7 @@ func (r *SubTaskRepo) UpdateSubTaskStep(ctx context.Context, taskId int64, taskS
 	where := map[string]interface{}{
 		"id": taskId,
 	}
-	rowEffected, err := db.Updates(&db.Task{}, where, data, nil)
+	rowEffected, err := db.Updates(&db.SubTask{}, where, data, nil)
 	if err != nil {
 		log.Logger.Error(err)
 		return err
@@ -188,9 +191,9 @@ func (r *SubTaskRepo) UpdateSubTaskStep(ctx context.Context, taskId int64, taskS
 	return err
 }
 
-func (r *SubTaskRepo) GetSubTask(ctx context.Context, taskId int64) (*db.Task, error) {
+func (r *SubTaskRepo) GetSubTask(ctx context.Context, taskId int64) (*db.SubTask, error) {
 	var err error
-	obj := &db.Task{}
+	obj := &db.SubTask{}
 	err = db.Get(taskId, obj)
 	if err != nil {
 		log.Logger.Error(err)
