@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"strconv"
 
-	jsoniter "github.com/json-iterator/go"
-
 	"github.com/galaxy-future/schedulx/api/types"
 	"github.com/galaxy-future/schedulx/client/bridgxcli"
 	"github.com/galaxy-future/schedulx/register/config/log"
@@ -46,7 +44,7 @@ type ServiceDeployHttpRequest struct {
 	DeployType       string `form:"deploy_type" json:"deploy_type"` // 部署方式 all | scroll
 	FailSurge        int    `form:"fail_surge" json:"fail_surge"`   // percent, 20 means 20%, valid [1, 100] . The deployment will be terminated,If the proportion of failed instances more than fail surge.
 	MaxSurge         string `form:"max_surge" json:"max_surge"`     // percent, 20 means 20%, valid [1, 100] . The ratio of rolling deployments, use ',' to separate each round.
-	HealthCheck      string `form:"health_check" json:"health_check"`
+	RunningEnvId     int64  `form:"running_env_id" json:"running_env_id"`
 	ExecType         string `form:"exec_type" json:"exec_type"`
 	Rollback         bool   `form:"rollback" json:"rollback"`
 }
@@ -197,10 +195,9 @@ func (h *Service) Deploy(ctx *gin.Context) {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
 		return
 	}
-	healthCheck := &types.HealthCheck{}
-	err = jsoniter.UnmarshalFromString(httpReq.HealthCheck, healthCheck)
+	runningEnv, err := service.GetServiceIns().GetRunningEnvById(ctx, httpReq.RunningEnvId)
 	if err != nil {
-		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
 	serviceCluster, err := repository.GetServiceRepoInst().GetServiceCluster(ctx, clusterId)
@@ -231,7 +228,7 @@ func (h *Service) Deploy(ctx *gin.Context) {
 			DeployType:       httpReq.DeployType,
 			FailSurge:        httpReq.FailSurge,
 			MaxSurge:         httpReq.MaxSurge,
-			HealthCheck:      healthCheck,
+			HealthCheck:      &runningEnv.HealthCheck,
 			Rollback:         httpReq.Rollback,
 		},
 	}

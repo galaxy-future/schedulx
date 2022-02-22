@@ -2,9 +2,10 @@ package repository
 
 import (
 	"context"
-	"github.com/galaxy-future/schedulx/register/constant"
 	"strings"
 	"sync"
+
+	"github.com/galaxy-future/schedulx/register/constant"
 
 	"github.com/galaxy-future/schedulx/api/types"
 	"github.com/galaxy-future/schedulx/pkg/tool"

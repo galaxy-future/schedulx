@@ -1,4 +1,4 @@
-package healthCheckcli
+package healthcheckcli
 
 import (
 	"context"
