@@ -91,12 +91,12 @@ func (s *ServiceSvc) GetServiceClusterList(ctx context.Context, serviceName stri
 	return &ClusterListResp{ClusterList: res}, nil
 }
 
-func (s *ServiceSvc) GetCloudClusterInfo(ctx context.Context, clusterId int64) (*ServiceClusterInfo, error) {
-	resp, err := bridgxcli.GetBridgXCli(ctx).GetClusterById(ctx, &bridgxcli.GetClusterByIdReq{ClusterId: clusterId})
+func (s *ServiceSvc) GetCloudClusterInfo(ctx context.Context, clusterName string) (*ServiceClusterInfo, error) {
+	resp, err := bridgxcli.GetBridgXCli(ctx).GetClusterByName(ctx, &bridgxcli.GetClusterByNameReq{ClusterName: clusterName})
 	if err != nil {
 		return nil, err
 	}
-	serviceClusters, err := repository.GetInstanceRepoIns().GetInstanceCountByClusterIds(ctx, []int64{clusterId})
+	serviceClusters, err := repository.GetInstanceRepoIns().GetInstanceCountByClusterIds(ctx, []int64{resp.Data.Id})
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (s *ServiceSvc) GetCloudClusterInfo(ctx context.Context, clusterId int64) (
 	return bridgxCluster2ServiceCluster(resp.Data, count), nil
 }
 
-func (s *ServiceSvc) GetK8sClusterInfo(ctx context.Context, clusterId int64) (*ServiceClusterInfo, error) {
+func (s *ServiceSvc) GetK8sClusterInfo(ctx context.Context, clusterName string) (*ServiceClusterInfo, error) {
 	return bridgxCluster2ServiceCluster(nil, 0), nil
 }
 
@@ -342,13 +342,13 @@ func (s *ServiceSvc) GetRunningEnvById(ctx context.Context, envId int64) (*types
 	for _, resource := range computingRes {
 		switch resource.ComputingType {
 		case types.CloudCluster:
-			info, err := s.GetCloudClusterInfo(ctx, resource.ClusterId)
+			info, err := s.GetCloudClusterInfo(ctx, resource.ClusterName)
 			if err != nil {
-				log.Logger.Errorf("GetCloudClusterInfo %v failed, %v", resource.ClusterId, err)
+				log.Logger.Errorf("GetCloudClusterInfo %v failed, %v", resource.ClusterName, err)
 				continue
 			}
 			resourceInfo[resource.Id] = types.ResourceInfo{
-				ClusterId:          resource.ClusterId,
+				ClusterId:          info.ServiceClusterId,
 				BridgxCluster:      info.BridgxCluster,
 				InstanceCount:      info.InstanceCount,
 				InstanceTypeDesc:   info.InstanceTypeDesc,
@@ -357,13 +357,13 @@ func (s *ServiceSvc) GetRunningEnvById(ctx context.Context, envId int64) (*types
 				ChargeType:         info.ChargeType,
 			}
 		case types.K8sCluster:
-			_, err := s.GetK8sClusterInfo(ctx, resource.ClusterId)
+			_, err := s.GetK8sClusterInfo(ctx, resource.ClusterName)
 			if err != nil {
-				log.Logger.Errorf("GetK8sClusterInfo %v failed %v", resource.ClusterId, err)
+				log.Logger.Errorf("GetK8sClusterInfo %v failed %v", resource.ClusterName, err)
 				continue
 			}
 			resourceInfo[resource.Id] = types.ResourceInfo{
-				ClusterId: resource.ClusterId,
+				BridgxCluster: resource.ClusterName,
 			}
 		}
 	}
@@ -453,7 +453,6 @@ func types2runningEnv(info *types.RunningEnv) (*db.RunningEnv, []db.ComputingRes
 			},
 			EnvId:         info.Id,
 			ComputingType: resource.ComputingType,
-			ClusterId:     resource.ClusterId,
 			ClusterName:   resource.BridgxCluster,
 		})
 	}

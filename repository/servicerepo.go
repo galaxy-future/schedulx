@@ -43,6 +43,7 @@ type ServiceListLogic struct {
 
 // ServiceDetailLogic 服务详情数据
 type ServiceDetailLogic struct {
+	ServiceId          int64  `json:"service_id"`
 	ServiceName        string `json:"service_name"`
 	Domain             string `json:"domain"`
 	Port               string `json:"port"`
@@ -266,14 +267,16 @@ func (r *ServiceRepo) GetServiceDetail(ctx context.Context, serviceName string) 
 			err = db.QueryFirst(templateWhere, &templateModel)
 			if err != nil {
 				log.Logger.Errorf("service_name:%v table [schedule_template] error:%v", serviceName, err)
-				return nil, err
+			} else {
+				detailInfo.TmplExpandId = templateModel.Id
+				detailInfo.TmplExpandName = templateModel.TmplName
 			}
-			detailInfo.TmplExpandId = templateModel.Id
-			detailInfo.TmplExpandName = templateModel.TmplName
 		}
 		detailInfo.ServiceClusterName = serviceClusterModel.ClusterName
 		detailInfo.ServiceClusterId = serviceClusterModel.Id
 	}
+
+	detailInfo.ServiceId = serviceModel.Id
 	detailInfo.Description = serviceModel.Description
 	detailInfo.ServiceName = serviceModel.ServiceName
 	detailInfo.Domain = serviceModel.Domain

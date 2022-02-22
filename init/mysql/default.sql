@@ -145,12 +145,11 @@ CREATE TABLE `computing_resource`
     `id`             bigint(20)  NOT NULL AUTO_INCREMENT,
     `env_id`         bigint(20)  NOT NULL,
     `computing_type` varchar(16) NOT NULL comment '算力类型',
-    `cluster_id`     bigint(20)  NOT NULL comment '算力集群id',
     `cluster_name`   varchar(64) NOT NULL,
     `create_at`      timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `update_at`      timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uniq_env_id_type_cluster_id` (`env_id`,`computing_type`,`cluster_id`)
+    UNIQUE KEY `uniq_env_id_type_cluster_name` (`env_id`,`computing_type`,`cluster_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 --

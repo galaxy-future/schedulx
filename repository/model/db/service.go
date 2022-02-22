@@ -69,7 +69,6 @@ type ComputingResource struct {
 	Base
 	EnvId         int64  `json:"env_id"`
 	ComputingType string `json:"computing_type"`
-	ClusterId     int64  `json:"cluster_id"`
 	ClusterName   string `json:"cluster_name"`
 }
 
