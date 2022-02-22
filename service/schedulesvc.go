@@ -62,15 +62,15 @@ type ServiceShrinkSvcReq struct {
 }
 
 type ServiceDeploySvcReq struct {
-	ServiceClusterId int64                       `json:"service_cluster_id'"`
-	DownloadFileUrl  string                      `json:"download_file_url"`
-	Count            int64                       `json:"count"`
-	DeployType       string                      `json:"deploy_type"` // The Type of deploy : all or scroll
-	FailSurge        int                         `json:"fail_surge"`  // percent, 20 means 20%, valid [1, 100] . The deployment will be terminated,If the proportion of failed instances more than fail surge.
-	MaxSurge         string                      `json:"max_surge"`   // percent, 20 means 20%, valid [1, 100] . The ratio of rolling deployments, use ',' to separate each round.
-	ExecType         string                      `json:"exec_type"`
-	HealthCheck      *healthCheckcli.HealthCheck `json:"health_check"`
-	Rollback         bool                        `json:"rollback"`
+	ServiceClusterId int64              `json:"service_cluster_id'"`
+	DownloadFileUrl  string             `json:"download_file_url"`
+	Count            int64              `json:"count"`
+	DeployType       string             `json:"deploy_type"` // The Type of deploy : all or scroll
+	FailSurge        int                `json:"fail_surge"`  // percent, 20 means 20%, valid [1, 100] . The deployment will be terminated,If the proportion of failed instances more than fail surge.
+	MaxSurge         string             `json:"max_surge"`   // percent, 20 means 20%, valid [1, 100] . The ratio of rolling deployments, use ',' to separate each round.
+	ExecType         string             `json:"exec_type"`
+	HealthCheck      *types.HealthCheck `json:"health_check"`
+	Rollback         bool               `json:"rollback"`
 }
 
 type ServiceExpandSvcResp struct {
