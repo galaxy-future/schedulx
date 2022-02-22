@@ -147,6 +147,7 @@ func (s *InstrSvc) ExecAct(ctx context.Context, args interface{}, act types.Acti
 
 func (s *InstrSvc) ExecActForScrollDeploy(ctx context.Context, args interface{}, act types.Action) (svcResp interface{}, err error) {
 	svcReq, ok := args.(*InstrSvcReq)
+	instanceTaskId := strconv.FormatInt(svcReq.ScheduleTaskId, 10) + "_" + svcReq.InstanceTaskId
 	if !ok {
 		return nil, errors.New("init service request err")
 	}
@@ -159,9 +160,9 @@ func (s *InstrSvc) ExecActForScrollDeploy(ctx context.Context, args interface{},
 			instrStatus = types.InstrRecStatusFail
 			msg = err.Error()
 		}
-		_ = s.updateInstrRecord(ctx, svcReq.InstanceTaskId, svcReq.InstrId, instrStatus, msg)
+		_ = s.updateInstrRecord(ctx, instanceTaskId, svcReq.InstrId, instrStatus, msg)
 	}()
-	err = s.createInstrRecord(ctx, svcReq.InstanceTaskId, svcReq.InstrId)
+	err = s.createInstrRecord(ctx, instanceTaskId, svcReq.InstrId)
 	if err != nil {
 		return nil, err
 	}

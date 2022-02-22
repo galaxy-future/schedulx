@@ -429,7 +429,7 @@ func (s *ScheduleSvc) deployActionForScroll(ctx context.Context, svcReq *Service
 		for _, subTask := range scheduleSubTaskList {
 			var wg sync.WaitGroup
 			var instanceList []*types.InstanceInfo
-			err := jsoniter.UnmarshalFromString(subTask.InstanceList, instanceList)
+			err := jsoniter.UnmarshalFromString(subTask.InstanceList, &instanceList)
 			if err != nil {
 				log.Logger.Error(err.Error())
 				err = errors.New("subTask.InstanceList Unmarshal exception")
@@ -454,6 +454,9 @@ func (s *ScheduleSvc) deployActionForScroll(ctx context.Context, svcReq *Service
 				// Execute all instruction sets of each machine in turn
 				instInfo := instInfo
 				go func(instance *types.InstanceInfo) {
+					defer func() {
+						wg.Done()
+					}()
 					for _, instrId := range instrGroup {
 						instrSvcReq.InstrId = instrId
 						if err := s.doInstrForScrollDeploy(ctx, instrSvcReq); err != nil {
@@ -463,14 +466,15 @@ func (s *ScheduleSvc) deployActionForScroll(ctx context.Context, svcReq *Service
 							break
 						}
 					}
-					var checkErr error
-					checkErr = healthCheckcli.GetHealthCheckXCli(ctx).HealthCheck(ctx, svcReq.HealthCheck, instInfo)
-					if checkErr != nil {
-						_, _ = repository.GetInstanceRepoIns().UpdateStatus(ctx, types.InstanceStatusHealthCheckFail, subTaskId, instance.IpInner)
-						return
+					if err == nil {
+						var checkErr error
+						checkErr = healthCheckcli.GetHealthCheckXCli(ctx).HealthCheck(ctx, svcReq.HealthCheck, instInfo)
+						if checkErr != nil {
+							_, _ = repository.GetInstanceRepoIns().UpdateStatus(ctx, types.InstanceStatusHealthCheckFail, subTaskId, instance.IpInner)
+							return
+						}
+						_, _ = repository.GetInstanceRepoIns().UpdateStatus(ctx, types.InstanceStatusHealthCheck, subTaskId, instance.IpInner)
 					}
-					_, _ = repository.GetInstanceRepoIns().UpdateStatus(ctx, types.InstanceStatusHealthCheck, subTaskId, instance.IpInner)
-					wg.Done()
 				}(instInfo)
 			}
 

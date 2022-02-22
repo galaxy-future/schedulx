@@ -13,7 +13,7 @@ CREATE TABLE `instance`
     `task_id`            bigint(20)   NOT NULL COMMENT '任务 id',
     `service_cluster_id` bigint(20)   NOT NULL COMMENT '服务集群 id',
     `instance_id`        varchar(255) NOT NULL COMMENT '实例id',
-    `instance_status`    varchar(16)  NOT NULL COMMENT 'INIT, BASE_ENV,SVC,ALB,NGINX,FAIL,UNALB',
+    `instance_status`    varchar(18)  NOT NULL COMMENT 'INIT, BASE_ENV,SVC,ALB,NGINX,FAIL,UNALB',
     `ip_inner`           varchar(255) NOT NULL COMMENT '私网',
     `ip_outer`           varchar(255) NOT NULL COMMENT '公网',
     `msg`                varchar(128) NOT NULL COMMENT '失败信息',

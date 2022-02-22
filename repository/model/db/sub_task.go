@@ -19,5 +19,5 @@ type SubTask struct {
 }
 
 func (t *SubTask) TableName() string {
-	return "task"
+	return "sub_task"
 }

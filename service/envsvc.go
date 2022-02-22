@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/galaxy-future/schedulx/register/constant"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -98,7 +99,7 @@ func (s *EnvService) DeployBeforeDownloadInitAsync(ctx context.Context, svcReq *
 		s.exitLog(ctx, "DeployBeforeDownloadInitAsync", svcReq, nil, err)
 	}()
 	// 机器信息入库
-	if err = s.NodeUpdateDeploy(ctx, svcReq.InstanceList, svcReq.TaskId, svcReq.ServiceClusterId); err != nil {
+	if err = s.NodeUpdateDeploy(ctx, svcReq.InstanceList, svcReq.TaskId, svcReq.ServiceClusterId, constant.TaskDeployTypeAll); err != nil {
 		return err
 	}
 	//异步初始化
@@ -205,7 +206,7 @@ func (s *EnvService) DeployBeforeDownloadInitAsyncForScrollDeploy(ctx context.Co
 		s.exitLog(ctx, "DeployBeforeDownloadInitAsyncForScrollDeploy", svcReq, nil, err)
 	}()
 	// 机器信息入库
-	if err = s.NodeUpdateDeploy(ctx, svcReq.InstanceList, svcReq.TaskId, svcReq.ServiceClusterId); err != nil {
+	if err = s.NodeUpdateDeploy(ctx, svcReq.InstanceList, svcReq.TaskId, svcReq.ServiceClusterId, constant.TaskDeployTypeScroll); err != nil {
 		return err
 	}
 	// 初始化
@@ -228,10 +229,10 @@ func (s *EnvService) NodeUpdateStore(ctx context.Context, instanceList []*types.
 	}
 	return nil
 }
-func (s *EnvService) NodeUpdateDeploy(ctx context.Context, instanceList []*types.InstanceInfo, taskId, serviceClusterId int64) error {
+func (s *EnvService) NodeUpdateDeploy(ctx context.Context, instanceList []*types.InstanceInfo, taskId, serviceClusterId int64, deployType string) error {
 	var err error
 	repo := repository.GetInstanceRepoIns()
-	if err = repo.UpInsertInstanceBatchByCluster(ctx, instanceList, taskId, serviceClusterId); err != nil {
+	if err = repo.UpInsertInstanceBatchByCluster(ctx, instanceList, taskId, serviceClusterId, deployType); err != nil {
 		return err
 	}
 	return nil

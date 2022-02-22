@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"github.com/galaxy-future/schedulx/register/constant"
 	"strings"
 	"sync"
 
@@ -135,16 +136,20 @@ func (r *instanceRepo) UpInsertInstanceBatch(ctx context.Context, instance []*ty
 	return nil
 }
 
-func (r *instanceRepo) UpInsertInstanceBatchByCluster(ctx context.Context, instance []*types.InstanceInfo, taskId, serviceClusterId int64) error {
+func (r *instanceRepo) UpInsertInstanceBatchByCluster(ctx context.Context, instance []*types.InstanceInfo, taskId, serviceClusterId int64, deployType string) error {
 	var err error
-	var instanceList []*db.Instance
-	where := map[string]interface{}{
-		"service_cluster_id": serviceClusterId,
+
+	if deployType == constant.TaskDeployTypeAll {
+		var instanceList []*db.Instance
+		where := map[string]interface{}{
+			"service_cluster_id": serviceClusterId,
+		}
+		if _, err = db.Updates(&instanceList, where, map[string]interface{}{"instance_status": types.InstanceStatusDeleted}, nil); err != nil {
+			log.Logger.Error("update error:", err)
+			return err
+		}
 	}
-	if _, err = db.Updates(&instanceList, where, map[string]interface{}{"instance_status": types.InstanceStatusDeleted}, nil); err != nil {
-		log.Logger.Error("update error:", err)
-		return err
-	}
+
 	var instanceBatch []*db.Instance
 	for _, ins := range instance {
 		instance := &db.Instance{
