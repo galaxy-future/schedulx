@@ -414,11 +414,11 @@ func (s *ScheduleSvc) deployActionForScroll(ctx context.Context, svcReq *Service
 				asyncErr = config.ErrSysPanic
 			}
 			if asyncErr != nil {
+				taskStatus = types.TaskStatusFail
 				if needRollBack {
 					taskStatus = types.TaskStatusRollingBack
 				}
-				taskStatus = types.TaskStatusFail
-				_ = taskRepo.UpdateTaskStatus(ctx, scheduleTaskId, taskStatus, err.Error())
+				_ = taskRepo.UpdateTaskStatus(ctx, scheduleTaskId, taskStatus, asyncErr.Error())
 				return
 			}
 			_ = taskRepo.UpdateTaskStatus(ctx, scheduleTaskId, taskStatus, "")
@@ -429,12 +429,7 @@ func (s *ScheduleSvc) deployActionForScroll(ctx context.Context, svcReq *Service
 		for _, subTask := range scheduleSubTaskList {
 			var wg sync.WaitGroup
 			var instanceList []*types.InstanceInfo
-			err := jsoniter.UnmarshalFromString(subTask.InstanceList, &instanceList)
-			if err != nil {
-				log.Logger.Error(err.Error())
-				err = errors.New("subTask.InstanceList Unmarshal exception")
-				return
-			}
+			_ = jsoniter.UnmarshalFromString(subTask.InstanceList, &instanceList)
 			subTaskId := subTask.Id
 			instrSvcReq.NodeActSvcReq.InstanceCount = int64(len(instanceList))
 			instrSvcReq.NodeActSvcReq.TaskId = subTaskId
@@ -459,42 +454,36 @@ func (s *ScheduleSvc) deployActionForScroll(ctx context.Context, svcReq *Service
 					}()
 					for _, instrId := range instrGroup {
 						instrSvcReq.InstrId = instrId
-						if err := s.doInstrForScrollDeploy(ctx, instrSvcReq); err != nil {
-							asyncErr = err
+						if asyncErr = s.doInstrForScrollDeploy(ctx, instrSvcReq); asyncErr != nil {
 							atomic.AddUint64(&failNum, 1)
-							log.Logger.Error("doInstr err: ", err)
+							log.Logger.Error("doInstr err: ", asyncErr)
 							break
 						}
 					}
-					if err == nil {
-						var checkErr error
-						checkErr = healthCheckcli.GetHealthCheckXCli(ctx).HealthCheck(ctx, svcReq.HealthCheck, instInfo)
-						if checkErr != nil {
-							_, _ = repository.GetInstanceRepoIns().UpdateStatus(ctx, types.InstanceStatusHealthCheckFail, subTaskId, instance.IpInner)
+					if asyncErr == nil {
+						if checkErr := healthCheckcli.GetHealthCheckXCli(ctx).HealthCheck(ctx, svcReq.HealthCheck, instInfo); checkErr != nil {
+							_, asyncErr = repository.GetInstanceRepoIns().UpdateStatus(ctx, types.InstanceStatusHealthCheckFail, subTaskId, instance.IpInner)
 							return
 						}
-						_, _ = repository.GetInstanceRepoIns().UpdateStatus(ctx, types.InstanceStatusHealthCheck, subTaskId, instance.IpInner)
+						_, asyncErr = repository.GetInstanceRepoIns().UpdateStatus(ctx, types.InstanceStatusHealthCheck, subTaskId, instance.IpInner)
 					}
 				}(instInfo)
 			}
-
+			// wait for all instances in a subtask to be processed
 			wg.Wait()
-			if failNum/total*100 >= uint64(svcReq.FailSurge) {
-				needRollBack = true
-			}
 			if r := recover(); r != nil {
 				log.Logger.Errorf("%s", debug.Stack())
 				asyncErr = config.ErrSysPanic
 			}
 			if asyncErr != nil {
-				if needRollBack {
-					taskStatus = types.TaskStatusRollingBack
-				}
-				taskStatus = types.TaskStatusFail
-				_ = subTaskRepo.UpdateSubTaskStatus(ctx, subTaskId, taskStatus, asyncErr.Error())
+				_ = subTaskRepo.UpdateSubTaskStatus(ctx, subTaskId, types.TaskStatusFail, asyncErr.Error())
+			} else {
+				_ = subTaskRepo.UpdateSubTaskStatus(ctx, subTaskId, taskStatus, "")
+			}
+			if failNum*100/total >= uint64(svcReq.FailSurge) {
+				needRollBack = true
 				break
 			}
-			_ = subTaskRepo.UpdateSubTaskStatus(ctx, subTaskId, taskStatus, "")
 		}
 		log.Logger.Info("end scroll deploy instance async")
 	}()
