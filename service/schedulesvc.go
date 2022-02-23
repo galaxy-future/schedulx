@@ -513,20 +513,19 @@ func (s *ScheduleSvc) doInstr(ctx context.Context, instrSvcReq *InstrSvcReq) err
 	}
 	instrSvcResp := svcResp.(*InstrSvcResp)
 	taskRepo := repository.GetTaskRepoInst()
-	instanceGroup := instrSvcResp.NodeActSvcResp.InstGroup
 	switch instrument.InstrAction {
 	case instrSvc.BridgXExpand: // 给下一轮赋值参数
 		instrSvcReq.NodeActSvcReq.InstGroup = instrSvcResp.BridgXSvcResp.InstGroup
 		instrSvcReq.NodeActSvcReq.Auth = instrSvcResp.BridgXSvcResp.Auth
 		err = taskRepo.UpdateTaskRelationTaskId(ctx, instrSvcReq.ScheduleTaskId, types.BridgXTaskId, instrSvcResp.BridgXSvcResp.TaskId)
 	case instrSvc.NodeActInitBase:
-		instrSvcReq.NodeActSvcReq.InstGroup = instanceGroup
-		err = taskRepo.UpdateTaskRelationTaskId(ctx, instrSvcReq.ScheduleTaskId, types.NodeactTaskId, instanceGroup.TaskId)
+		instrSvcReq.NodeActSvcReq.InstGroup = instrSvcResp.NodeActSvcResp.InstGroup
+		err = taskRepo.UpdateTaskRelationTaskId(ctx, instrSvcReq.ScheduleTaskId, types.NodeactTaskId, instrSvcResp.NodeActSvcResp.InstGroup.TaskId)
 	case instrSvc.NodeActInitSvc:
-		instrSvcReq.NodeActSvcReq.InstGroup = instanceGroup
+		instrSvcReq.NodeActSvcReq.InstGroup = instrSvcResp.NodeActSvcResp.InstGroup
 	case instrSvc.MountSLB:
 	case instrSvc.UmountSLB:
-		instrSvcReq.BridgXSvcReq.InstGroup = instanceGroup
+		instrSvcReq.BridgXSvcReq.InstGroup = instrSvcResp.NodeActSvcResp.InstGroup
 	case instrSvc.BridgXShrink:
 	case instrSvc.MountNginx:
 	case instrSvc.UmountNginx:
