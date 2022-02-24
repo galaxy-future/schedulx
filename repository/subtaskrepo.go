@@ -76,7 +76,7 @@ func (r *SubTaskRepo) CreateSubTask(instanceList []*types.InstanceInfo, maxSurge
 		stepLen := int(math.Ceil(float64(total) * float64(surge) / 100.0))
 		stepLens = append(stepLens, stepLens[i]+stepLen)
 		start, end := stepLens[i], stepLens[i]+stepLen
-		if start > int(total) {
+		if start >= int(total) {
 			break
 		}
 		if end > int(total) {

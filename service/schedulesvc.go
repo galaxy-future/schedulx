@@ -8,7 +8,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/galaxy-future/schedulx/client/healthcheckcli"
 	"github.com/galaxy-future/schedulx/pkg/nodeact"
 	"github.com/galaxy-future/schedulx/register/config"
 
@@ -461,7 +460,7 @@ func (s *ScheduleSvc) deployActionForScroll(ctx context.Context, svcReq *Service
 						}
 					}
 					if asyncErr == nil {
-						if checkErr := healthcheckcli.GetHealthCheckXCli(ctx).HealthCheck(ctx, svcReq.HealthCheck, instInfo); checkErr != nil {
+						if checkErr := tool.GetHealthCheckXCli(ctx).HealthCheck(ctx, svcReq.HealthCheck, instInfo); checkErr != nil {
 							_, asyncErr = repository.GetInstanceRepoIns().UpdateStatus(ctx, types.InstanceStatusHealthCheckFail, subTaskId, instance.IpInner)
 							return
 						}
