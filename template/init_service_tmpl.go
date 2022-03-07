@@ -61,6 +61,10 @@ echo "success"
 {{end}}
 `
 
+var tmpl = template.
+	Must(template.New("service").Funcs(template.FuncMap{"pickDomainFromUrl": tool.PickDomainFromUrl}).
+		Parse(initServiceCmd))
+
 func GetInitServiceCmd(params *types.ParamsServiceEnv, dockerRun string) (string, error) {
 	pass, err := tool.AesDecrypt(params.Password, []byte(params.Account))
 	if err != nil {
@@ -78,10 +82,7 @@ func GetInitServiceCmd(params *types.ParamsServiceEnv, dockerRun string) (string
 			Password:         pwd,
 		},
 	}
-	fm := template.FuncMap{
-		"pickDomainFromUrl": tool.PickDomainFromUrl,
-	}
-	tmpl, _ := template.New("service").Funcs(fm).Parse(initServiceCmd)
+	//tmpl, _ := template.New("service").Funcs(fm).Parse(initServiceCmd)
 	var buf bytes.Buffer
 	err = tmpl.Execute(&buf, data)
 	if err != nil {
