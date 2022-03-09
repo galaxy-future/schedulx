@@ -13,7 +13,9 @@ type ScheduleTemplate struct {
 	ServiceName        string                `gorm:"column:service_name" json:"service_name"`
 	ServiceClusterId   int64                 `gorm:"column:service_cluster_id" json:"service_cluster_id"`
 	BridgxClusname     string                `gorm:"column:bridgx_clusname" json:"bridgx_clusname"` // bridgx 的 cluster name
+	DeployMode         string                `gorm:"column:deploy_mode" json:"deploy_mode"`
 	Description        string                `gorm:"column:description" json:"description"`
+	TmplAttrs          string                `gorm:"column:tmpl_attrs" json:"tmpl_attrs"`
 	InstrGroup         string                `gorm:"column:instr_group" json:"instr_group"`
 	ScheduleType       constant.ScheduleType `gorm:"column:schedule_type" json:"schedule_type"`
 	ReverseSchedTmplId int64                 `gorm:"column:reverse_sched_tmpl_id" json:"reverse_sched_tmpl_id"`

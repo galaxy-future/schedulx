@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+
+	"github.com/galaxy-future/schedulx/client/bridgxcli"
 
 	"github.com/galaxy-future/schedulx/api/types"
 	"github.com/galaxy-future/schedulx/register/config/log"
@@ -35,7 +38,19 @@ type ServiceShrinkHttpRequest struct {
 	ExecType         string `form:"exec_type" json:"exec_type"`
 }
 
+type ServiceDeployHttpRequest struct {
+	ServiceClusterId int64  `form:"service_cluster_id" json:"service_cluster_id"`
+	DownloadFileUrl  string `form:"download_file_url" json:"download_file_url"`
+	Count            int64  `form:"count" json:"count"`
+	ExecType         string `form:"exec_type" json:"exec_type"`
+	Rollback         bool   `form:"rollback" json:"rollback"`
+}
+
 type ServiceShrinkHttpResponse struct {
+	TaskId int64 `json:"task_id"`
+}
+
+type ServiceDeployHttpResponse struct {
 	TaskId int64 `json:"task_id"`
 }
 
@@ -45,6 +60,36 @@ type ServiceCreateHttpRequest struct {
 
 type ServiceCreateHttpResponse struct {
 	ServiceClusterId int64 `json:"service_cluster_id"`
+}
+
+type WorkflowListRequest struct {
+	ServiceName string `form:"service_name" binding:"required"`
+}
+
+type WorkflowListResponse struct {
+	WorkflowList []Workflow `json:"workflow_list"`
+}
+
+type Workflow struct {
+	WorkflowName string `json:"workflow_name"`
+}
+
+type ArtifactListRequest struct {
+	ServiceName  string `form:"service_name" binding:"required"`
+	WorkflowName string `form:"workflow_name" binding:"required"`
+	FileType     string `form:"file_type" binding:"required"`
+	PageNum      int    `form:"page_num" binding:"required"`
+	PageSize     int    `form:"page_size" binding:"required"`
+}
+
+type ArtifactListResponse struct {
+	ArtifactList []Artifact  `json:"artifact_list"`
+	Pager        types.Pager `json:"pager"`
+}
+
+type Artifact struct {
+	TaskId    int    `json:"task_id"`
+	ImageName string `json:"image_name"`
 }
 
 // Expand 服务扩容入口
@@ -130,6 +175,58 @@ func (h *Service) Shrink(ctx *gin.Context) {
 	}
 	data := &ServiceShrinkHttpResponse{
 		TaskId: resp.(*service.ScheduleSvcResp).ServiceShrinkSvcResp.TaskId,
+	}
+	MkResponse(ctx, http.StatusOK, "success", data)
+	return
+}
+
+// Deploy 服务部署入口
+func (h *Service) Deploy(ctx *gin.Context) {
+	var err error
+	httpReq := &ServiceDeployHttpRequest{}
+	err = ctx.BindQuery(httpReq)
+	log.Logger.Infof("httpReq:%+v", httpReq)
+
+	clusterId := cast.ToInt64(httpReq.ServiceClusterId)
+	if clusterId == 0 {
+		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
+		return
+	}
+	serviceCluster, err := repository.GetServiceRepoInst().GetServiceCluster(ctx, clusterId)
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	var instanceCount int
+	bridgxResp, err := bridgxcli.GetBridgXCli(ctx).ClusterInstanceStat(ctx, serviceCluster.BridgxCluster)
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	if bridgxResp != nil && bridgxResp.Data != nil {
+		instanceCount = bridgxResp.Data.InstanceCount
+	}
+	if instanceCount == 0 {
+		MkResponse(ctx, http.StatusBadRequest, fmt.Sprintf("bridgx cluster:%v has no instances", serviceCluster.BridgxCluster), nil)
+		return
+	}
+	scheduleSvc := service.GetScheduleSvcInst()
+	tmplSvcReq := &service.ScheduleSvcReq{
+		ServiceDeploySvcReq: &service.ServiceDeploySvcReq{
+			ServiceClusterId: clusterId,
+			DownloadFileUrl:  httpReq.DownloadFileUrl,
+			Count:            int64(instanceCount),
+			ExecType:         httpReq.ExecType,
+			Rollback:         httpReq.Rollback,
+		},
+	}
+	resp, err := scheduleSvc.ExecAct(ctx, tmplSvcReq, scheduleSvc.Deploy)
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	data := &ServiceDeployHttpResponse{
+		TaskId: resp.(*service.ScheduleSvcResp).ServiceDeploySvcResp.TaskId,
 	}
 	MkResponse(ctx, http.StatusOK, "success", data)
 	return
@@ -272,6 +369,26 @@ func (h *Service) Create(ctx *gin.Context) {
 	return
 }
 
+// Delete 删除服务
+func (h *Service) Delete(ctx *gin.Context) {
+	var err error
+	var params = struct {
+		ServiceIds []int64 `json:"ids"`
+	}{}
+	err = ctx.BindJSON(&params)
+	if err != nil {
+		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, "参数为整数数组")
+		return
+	}
+	err = service.GetServiceIns().Delete(ctx, params.ServiceIds)
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	MkResponse(ctx, http.StatusOK, "success", nil)
+	return
+}
+
 // Update 更新数据表记录
 func (h *Service) Update(ctx *gin.Context) {
 	var err error
@@ -279,6 +396,9 @@ func (h *Service) Update(ctx *gin.Context) {
 		ServiceInfo struct {
 			ServiceName string `json:"service_name"`
 			Description string `json:"description"`
+			Domain      string `json:"domain"`
+			Port        string `json:"port"`
+			GitRepo     string `json:"git_repo"`
 		} `json:"service_info"`
 	}{}
 	err = ctx.BindJSON(&params)
@@ -286,11 +406,66 @@ func (h *Service) Update(ctx *gin.Context) {
 		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
 		return
 	}
-	ret, err := service.GetServiceIns().UpdateDesc(ctx, params.ServiceInfo.ServiceName, params.ServiceInfo.Description)
+	ret, err := service.GetServiceIns().Update(ctx, params.ServiceInfo.ServiceName, params.ServiceInfo.Description, params.ServiceInfo.Domain, params.ServiceInfo.Port, params.ServiceInfo.GitRepo)
 	if err != nil {
 		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
 	MkResponse(ctx, http.StatusOK, errOK, ret)
+	return
+}
+
+func (h *Service) GetWorkflows(ctx *gin.Context) {
+	var err error
+	httpReq := &WorkflowListRequest{}
+	err = ctx.BindQuery(httpReq)
+	log.Logger.Infof("httpReq:%+v", httpReq)
+	if err != nil {
+		log.Logger.Error(err)
+		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
+		return
+	}
+	workflows, err := service.GetZadigSvcInst().GetWorkflows(ctx, httpReq.ServiceName)
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	workflowList := make([]Workflow, 0, len(workflows))
+	for _, workflow := range workflows {
+		workflowList = append(workflowList, Workflow{WorkflowName: workflow.WorkflowName})
+	}
+	MkResponse(ctx, http.StatusOK, errOK, WorkflowListResponse{
+		WorkflowList: workflowList,
+	})
+	return
+}
+
+func (h *Service) GetWorkflowTasks(ctx *gin.Context) {
+	var err error
+	httpReq := &ArtifactListRequest{}
+	err = ctx.BindQuery(httpReq)
+	log.Logger.Infof("httpReq:%+v", httpReq)
+	if err != nil {
+		log.Logger.Error(err)
+		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
+		return
+	}
+	total, workflowTasks, err := service.GetZadigSvcInst().GetWorkflowTasks(ctx, httpReq.ServiceName, httpReq.WorkflowName, httpReq.FileType, httpReq.PageNum, httpReq.PageSize)
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	artifactList := make([]Artifact, 0, len(workflowTasks))
+	for _, workflowTask := range workflowTasks {
+		artifactList = append(artifactList, Artifact{TaskId: workflowTask.TaskId, ImageName: workflowTask.ImageName})
+	}
+	MkResponse(ctx, http.StatusOK, errOK, ArtifactListResponse{
+		ArtifactList: artifactList,
+		Pager: types.Pager{
+			PagerNum:  httpReq.PageNum,
+			PagerSize: httpReq.PageSize,
+			Total:     total,
+		},
+	})
 	return
 }

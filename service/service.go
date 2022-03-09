@@ -63,6 +63,10 @@ func (s *ServiceSvc) GetServiceClusterList(ctx context.Context, serviceName stri
 	}
 	res := make([]ServiceClusterInfo, 0)
 	for _, cluster := range clusters {
+		if cluster.BridgxCluster == "" {
+			//not binding bridgx cluster yet
+			continue
+		}
 		resp, err := bridgxcli.GetBridgXCli(ctx).GetClusterByName(ctx, &bridgxcli.GetClusterByNameReq{ClusterName: cluster.BridgxCluster})
 		if err != nil {
 			return nil, err
@@ -77,15 +81,20 @@ func (s *ServiceSvc) GetServiceClusterList(ctx context.Context, serviceName stri
 		}
 		clusterInfo := resp.Data
 		var chargeType string
+		var core, memory int
 		if clusterInfo.ChargeConfig != nil {
 			chargeType = clusterInfo.ChargeConfig.ChargeType
+		}
+		if clusterInfo.ExtendConfig != nil {
+			core = clusterInfo.ExtendConfig.InstanceCore
+			memory = clusterInfo.ExtendConfig.InstanceMemory
 		}
 		res = append(res, ServiceClusterInfo{
 			ServiceClusterId:   cluster.Id,
 			ServiceCluster:     cluster.ClusterName,
 			BridgxCluster:      cluster.BridgxCluster,
 			InstanceCount:      count,
-			InstanceTypeDesc:   genDesc(clusterInfo.InstanceType, clusterInfo.InstanceCore, clusterInfo.InstanceMemory),
+			InstanceTypeDesc:   genDesc(clusterInfo.InstanceType, core, memory),
 			ComputingPowerType: getComputingPowerType(clusterInfo.Provider, clusterInfo.InstanceType),
 			Provider:           clusterInfo.Provider,
 			ChargeType:         chargeType,
@@ -167,9 +176,9 @@ func (s *ServiceSvc) Detail(ctx context.Context, serviceName string) (map[string
 	return ret, nil
 }
 
-func (s *ServiceSvc) UpdateDesc(ctx context.Context, serviceName, description string) (map[string]interface{}, error) {
+func (s *ServiceSvc) Update(ctx context.Context, serviceName, description, domain, port, gitRepo string) (map[string]interface{}, error) {
 	var err error
-	ret, err := repository.GetServiceRepoInst().UpdateDesc(ctx, serviceName, description)
+	ret, err := repository.GetServiceRepoInst().Update(ctx, serviceName, description, domain, port, gitRepo)
 	if err != nil {
 		log.Logger.Errorf("update service_name:%v error:%v", serviceName, err)
 		return nil, err
@@ -186,6 +195,9 @@ func (s *ServiceSvc) CreateService(ctx context.Context, svcReq *ServiceCreateSvc
 		ServiceName: svcReq.ServiceInfo.ServiceName,
 		Description: svcReq.ServiceInfo.Description,
 		Language:    svcReq.ServiceInfo.Language,
+		Domain:      svcReq.ServiceInfo.Domain,
+		Port:        svcReq.ServiceInfo.Port,
+		GitRepo:     svcReq.ServiceInfo.GitRepo,
 	}
 	dbo := client.WriteDBCli.Begin().WithContext(ctx)
 	defer func() {
@@ -213,4 +225,8 @@ func (s *ServiceSvc) CreateService(ctx context.Context, svcReq *ServiceCreateSvc
 	}
 	svcResp.ServiceClusterId = svcClusterObj.Id
 	return svcResp, nil
+}
+
+func (s *ServiceSvc) Delete(ctx context.Context, ids []int64) error {
+	return repository.GetServiceRepoInst().DeleteServices(ctx, ids)
 }

@@ -135,6 +135,37 @@ func (r *instanceRepo) UpInsertInstanceBatch(ctx context.Context, instance []*ty
 	return nil
 }
 
+func (r *instanceRepo) UpInsertInstanceBatchByCluster(ctx context.Context, instance []*types.InstanceInfo, taskId, serviceClusterId int64) error {
+	var err error
+	var instanceList []*db.Instance
+	where := map[string]interface{}{
+		"service_cluster_id": serviceClusterId,
+	}
+	if _, err = db.Updates(&instanceList, where, map[string]interface{}{"instance_status": types.InstanceStatusDeleted}, nil); err != nil {
+		log.Logger.Error("update error:", err)
+		return err
+	}
+	var instanceBatch []*db.Instance
+	for _, ins := range instance {
+		instance := &db.Instance{
+			TaskId:           taskId,
+			InstanceId:       ins.InstanceId,
+			ServiceClusterId: serviceClusterId,
+			InstanceStatus:   types.InstanceStatusInit,
+			IpInner:          ins.IpInner,
+			IpOuter:          ins.IpOuter,
+			//CreateAt:       time.Now(),
+		}
+		instanceBatch = append(instanceBatch, instance)
+	}
+	if err = db.BatchCreate(instanceBatch, nil); err != nil {
+		log.Logger.Error("batch create:", err)
+		return err
+	}
+
+	return nil
+}
+
 func (r *instanceRepo) UpdateInst(ctx context.Context, taskId int64, instId string, instStatus types.InstanceStatus, msg string) error {
 	var err error
 	instance := &db.Instance{}
@@ -296,4 +327,12 @@ func emptyResp(clusterIds []int64) []ClusterInstanceCount {
 		})
 	}
 	return res
+}
+
+func (r *instanceRepo) GetInstanceByIpInner(ctx context.Context, ip string) (ins db.Instance, err error) {
+	err = client.ReadDBCli.WithContext(ctx).Debug().Model(db.Instance{}).
+		Where("ip_inner = ? and instance_status != ? ", ip, types.InstanceStatusDeleted).
+		First(&ins).
+		Error
+	return ins, err
 }

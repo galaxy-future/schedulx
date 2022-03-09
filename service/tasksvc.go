@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"sync"
 
+	jsoniter "github.com/json-iterator/go"
+	"github.com/spf13/cast"
+
 	"github.com/galaxy-future/schedulx/api/types"
 	"github.com/galaxy-future/schedulx/pkg/tool"
 	"github.com/galaxy-future/schedulx/register/config/log"
@@ -159,12 +162,14 @@ func (s *TaskService) Info(ctx context.Context, svcReq *TaskInfoSvcReq) (*TaskIn
 	}
 	return &TaskInfoSvcResp{
 		TaskInfo: &types.TaskInfo{
-			TaskStatus: task.TaskStatus,
-			TaskStep:   task.TaskStep,
-			InstCnt:    task.InstCnt,
-			Msg:        task.Msg,
-			Operator:   task.Operator,
-			ExecType:   task.ExecType,
+			TaskStatus:     task.TaskStatus,
+			TaskStep:       task.TaskStep,
+			TaskStatusDesc: types.TaskStatusDesc(task.TaskStatus),
+			TaskStepDesc:   types.TaskStepDesc(task.TaskStep),
+			InstCnt:        task.InstCnt,
+			Msg:            task.Msg,
+			Operator:       task.Operator,
+			ExecType:       task.ExecType,
 		},
 	}, nil
 }
@@ -214,9 +219,68 @@ func (s *TaskService) HasRunningTask(ctx context.Context, serviceName, clusterNa
 	for _, tmpl := range tmpls {
 		schedTmplIds = append(schedTmplIds, tmpl.Id)
 	}
-	cnt, err := repository.GetTaskRepoInst().CountByCond(ctx, schedTmplIds, []string{types.TaskStatusRunning, types.TaskStatusInit})
+	cnt, err := repository.GetTaskRepoInst().CountByCond(ctx, schedTmplIds, []string{types.TaskStatusRollingBack, types.TaskStatusRunning, types.TaskStatusInit})
 	if err != nil {
 		return false, err
 	}
 	return cnt > 0, nil
+}
+
+type TaskDetail struct {
+	ServiceName       string `json:"service_name"`
+	ClusterName       string `json:"cluster_name"`
+	BridgXClusterName string `json:"bridgx_cluster_name"`
+	DeployFileUrl     string `json:"deploy_file_url"`
+	Operator          string `json:"operator"`
+	CreateTime        string `json:"create_time"`
+	RunningTaskId     string `json:"running_task_id"`
+}
+
+type TaskDeployInfo struct {
+	DownloadFileUrl string `json:"download_file_url"`
+}
+
+func (s *TaskService) GetRunningTask(ctx context.Context, serviceClusterId, taskId int64) (*TaskDetail, error) {
+	serviceCluster, err := repository.GetServiceRepoInst().GetServiceCluster(ctx, serviceClusterId)
+	if err != nil {
+		return nil, err
+	}
+	ret := &TaskDetail{}
+	tmpls, err := repository.GetScheduleTemplateRepoInst().GetAllTmplsBySvcClusterId([]int64{serviceClusterId})
+	if err != nil || len(tmpls) == 0 {
+		return nil, fmt.Errorf("templates not found, cluster_ids:%v", serviceClusterId)
+	}
+	schedTmplIds := make([]int64, 0, len(tmpls))
+	for _, tmpl := range tmpls {
+		schedTmplIds = append(schedTmplIds, tmpl.Id)
+	}
+	task := &db.Task{}
+	m := make(map[string]interface{})
+	if taskId == 0 {
+		m["sched_tmpl_id"] = schedTmplIds
+		m["task_status"] = []string{types.TaskStatusRunning, types.TaskStatusInit, types.TaskStatusRollingBack}
+	} else {
+		m["id"] = taskId
+	}
+	err = db.QueryLast(m, task)
+	if err != nil {
+		log.Logger.Errorf("query task info error:%v", err)
+	}
+	ret.ServiceName = serviceCluster.ServiceName
+	ret.ClusterName = serviceCluster.ClusterName
+	ret.BridgXClusterName = serviceCluster.BridgxCluster
+	taskDeployInfo := TaskDeployInfo{}
+	if task != nil {
+		ret.RunningTaskId = cast.ToString(task.Id)
+		err = jsoniter.UnmarshalFromString(task.TaskInfo, &taskDeployInfo)
+		if err == nil {
+			ret.DeployFileUrl = taskDeployInfo.DownloadFileUrl
+		}
+		ret.Operator = task.Operator
+		if task.CreateAt != nil {
+			ret.CreateTime = task.CreateAt.String()
+		}
+	}
+
+	return ret, nil
 }

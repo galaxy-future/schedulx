@@ -3,11 +3,11 @@ package handler
 import (
 	"net/http"
 
-	"github.com/galaxy-future/schedulx/repository"
-	"github.com/spf13/cast"
 	"github.com/galaxy-future/schedulx/api/types"
+	"github.com/galaxy-future/schedulx/repository"
 	"github.com/galaxy-future/schedulx/service"
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/cast"
 )
 
 type Instance struct{}
@@ -81,5 +81,29 @@ func (t *Task) InstanceList(ctx *gin.Context) {
 		TaskId:       req.TaskId,
 	}
 	MkResponse(ctx, http.StatusOK, errOK, ret)
+	return
+}
+
+type InstanceServiceByIpReq struct {
+	IpInner string `json:"ip_inner" form:"ip_inner" binding:"required,ip"`
+}
+
+func (i *Instance) InstanceServiceByIp(ctx *gin.Context) {
+	req := &InstanceServiceByIpReq{}
+	err := ctx.BindQuery(req)
+	if err != nil {
+		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
+		return
+	}
+	if req.IpInner == "" {
+		MkResponse(ctx, http.StatusBadRequest, errParamInvalid, nil)
+		return
+	}
+	resp, err := service.GetInstanceService().GetServiceByIp(ctx, req.IpInner)
+	if err != nil {
+		MkResponse(ctx, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	MkResponse(ctx, http.StatusOK, errOK, resp)
 	return
 }

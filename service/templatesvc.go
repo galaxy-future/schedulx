@@ -25,11 +25,28 @@ const (
 	ExpandStepBaseEnv    = "base_env"
 	ExpandStepServiceEnv = "service_env"
 	ExpandStepMount      = "mount"
+
+	InstanceDeployStepBeforeDownload = "base_env"
+	InstanceDeployStepDownloadExec   = "download_exec"
+	InstanceDeployStepBeforeDeploy   = "before_deploy"
+	InstanceDeployStepDeploy         = "deploy"
+	InstanceDeployStepAfterDeploy    = "after_deploy"
 )
 
 var (
-	expandStep = []string{ExpandStepTmplInfo, ExpandStepBaseEnv, ExpandStepServiceEnv, ExpandStepMount} // 标准扩容执行步骤
+	// 标准扩容执行步骤
+	expandStep = []string{ExpandStepTmplInfo, ExpandStepBaseEnv, ExpandStepServiceEnv, ExpandStepMount}
+	// ECS实例部署执行步骤
+	instanceDeploySteps = []string{InstanceDeployStepBeforeDownload, InstanceDeployStepDownloadExec, InstanceDeployStepBeforeDeploy, InstanceDeployStepDeploy, InstanceDeployStepAfterDeploy}
 )
+
+var deployFn = map[string]func(context.Context, *types.DeployInfo, int64, *gorm.DB) (int64, error){
+	InstanceDeployStepBeforeDownload: InstanceBeforeDownload,
+	InstanceDeployStepDownloadExec:   InstanceDownloadExec,
+	InstanceDeployStepBeforeDeploy:   InstanceBeforeDeploy,
+	InstanceDeployStepDeploy:         InstanceDeploy,
+	InstanceDeployStepAfterDeploy:    InstanceAfterDeploy,
+}
 
 type TemplateSvc struct {
 	Create types.Action
@@ -68,7 +85,13 @@ type TmplExpandSvcReq struct {
 	TmplInfo   *types.TmpInfo     `json:"tmpl_info"`
 	BaseEnv    *types.BaseEnv     `json:"base_env"`
 	ServiceEnv *types.ServiceEnv  `json:"service_env"`
+	DeployInfo *types.DeployInfo  `json:"deploy_info"`
 	Mount      *types.ParamsMount `json:"mount"`
+}
+
+type TmplDeployReq struct {
+	TmplInfo   *types.TmpInfo    `json:"tmpl_info"`
+	DeployInfo *types.DeployInfo `json:"deploy_info"`
 }
 
 type TmplUpdateSvcReq struct {
@@ -78,6 +101,7 @@ type TmplUpdateSvcReq struct {
 	BaseEnv      *types.BaseEnv     `json:"base_env"`
 	ServiceEnv   *types.ServiceEnv  `json:"service_env"`
 	Mount        *types.ParamsMount `json:"mount"`
+	DeployInfo   *types.DeployInfo  `json:"deploy_info"`
 }
 
 type TmplInfoSvcReq struct {
@@ -88,10 +112,12 @@ type TmplInfoSvcResp struct {
 	BaseEnv    *types.BaseEnv     `json:"base_env"`
 	ServiceEnv *types.ServiceEnv  `json:"service_env"`
 	Mount      *types.ParamsMount `json:"mount"`
+	DeployInfo *types.DeployInfo  `json:"deploy_info"`
 }
 
 type TmplExpandSvcResp struct {
-	TmplId string `json:"tmpl_id"`
+	TmplId       string `json:"tmpl_id"`
+	DeployTmplId string `json:"deploy_tmpl_id"`
 }
 
 type TmplUpdateSvcResp struct {
@@ -131,6 +157,140 @@ func (s *TemplateSvc) ExecAct(ctx context.Context, args interface{}, act types.A
 }
 
 func (s *TemplateSvc) createAction(ctx context.Context, svcReq *TmplExpandSvcReq) (*TemplateSvcResp, error) {
+	var svcResp *TemplateSvcResp
+	var err error
+	if svcReq.TmplInfo.DeployMode == types.DeployModeInstance {
+		svcResp, err = s.createInstanceTemplate(ctx, svcReq, nil)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		svcResp, err = s.createContainerTemplate(ctx, svcReq)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return svcResp, nil
+}
+
+func (s *TemplateSvc) createInstanceTemplate(ctx context.Context, svcReq *TmplExpandSvcReq, dbo *gorm.DB) (*TemplateSvcResp, error) {
+	var err error
+	if dbo == nil {
+		dbo = client.WriteDBCli.Debug().Begin()
+	}
+	defer func() {
+		if err != nil {
+			dbo.Rollback()
+			return
+		}
+		dbo.Commit()
+	}()
+
+	//0. binding bridgx cluster
+	serviceCluster, err := s.serviceBindBridgxCluster(svcReq, dbo)
+	if err != nil {
+		return nil, err
+	}
+
+	svcResp := &TemplateSvcResp{}
+
+	//1. for current situation, IGNORE s.createInstanceExpandTemplate()
+
+	//2. s.createInstanceDeployTemplate()
+
+	//2.1 create deploy template
+	tmplInfo, err := s.createInstanceDeployTmpl(ctx, svcReq.TmplInfo, svcReq.DeployInfo, serviceCluster.ServiceName, dbo)
+	if err != nil {
+		return nil, err
+	}
+
+	//2.2 create instructions
+	instructions := make([]int64, 0, len(instanceDeploySteps))
+	for _, step := range instanceDeploySteps {
+		fn, ok := deployFn[step]
+		if ok {
+			instructionId, err := fn(ctx, svcReq.DeployInfo, tmplInfo.Id, dbo)
+			if err != nil {
+				return nil, err
+			}
+			instructions = append(instructions, instructionId)
+		}
+	}
+
+	//2.3 update deploy template instructions
+	err = s.updateTmplInstrGroup(ctx, tmplInfo.Id, instructions, 0, dbo)
+	if err != nil {
+		return nil, err
+	}
+	svcResp.TmplExpandSvcResp = &TmplExpandSvcResp{
+		DeployTmplId: cast.ToString(tmplInfo.Id),
+	}
+	return svcResp, nil
+}
+
+func InstanceBeforeDownload(ctx context.Context, deployInfo *types.DeployInfo, tmplId int64, db *gorm.DB) (int64, error) {
+	svc := GetInstrSvcInst()
+	instrId, err := svc.CreateInstanceBeforeDownload(ctx, deployInfo, tmplId, db)
+	if err != nil {
+		return 0, err
+	}
+	return instrId, nil
+}
+
+func InstanceDownloadExec(ctx context.Context, deployInfo *types.DeployInfo, tmplId int64, db *gorm.DB) (int64, error) {
+	svc := GetInstrSvcInst()
+	instrId, err := svc.CreateInstanceDownloadExec(ctx, deployInfo, tmplId, db)
+	if err != nil {
+		return 0, err
+	}
+	return instrId, nil
+}
+
+func InstanceBeforeDeploy(ctx context.Context, deployInfo *types.DeployInfo, tmplId int64, db *gorm.DB) (int64, error) {
+	svc := GetInstrSvcInst()
+	instrId, err := svc.CreateInstanceBeforeDeploy(ctx, deployInfo, tmplId, db)
+	if err != nil {
+		return 0, err
+	}
+	return instrId, nil
+}
+
+func InstanceDeploy(ctx context.Context, deployInfo *types.DeployInfo, tmplId int64, db *gorm.DB) (int64, error) {
+	svc := GetInstrSvcInst()
+	instrId, err := svc.CreateInstanceDeploy(ctx, deployInfo, tmplId, db)
+	if err != nil {
+		return 0, err
+	}
+	return instrId, nil
+}
+
+func InstanceAfterDeploy(ctx context.Context, deployInfo *types.DeployInfo, tmplId int64, db *gorm.DB) (int64, error) {
+	svc := GetInstrSvcInst()
+	instrId, err := svc.CreateInstanceAfterDeploy(ctx, deployInfo, tmplId, db)
+	if err != nil {
+		return 0, err
+	}
+	return instrId, nil
+}
+
+func (s *TemplateSvc) serviceBindBridgxCluster(svcReq *TmplExpandSvcReq, dbo *gorm.DB) (*db.ServiceCluster, error) {
+	serviceCluster := &db.ServiceCluster{}
+	serviceClusterId := cast.ToInt64(svcReq.TmplInfo.ServiceClusterId)
+	if err := db.Get(serviceClusterId, serviceCluster); err != nil {
+		log.Logger.Errorf("db tabel:%v error:%v", serviceCluster.TableName(), err)
+		return nil, err
+	}
+
+	if err := db.UpdatesByIds(serviceCluster, []int64{serviceClusterId}, map[string]interface{}{
+		"bridgx_cluster": svcReq.TmplInfo.BridgxClusname,
+	}, dbo); err != nil {
+		log.Logger.Errorf("db tabel:%v error:%v", serviceCluster.TableName(), err)
+		return nil, err
+	}
+	return serviceCluster, nil
+}
+
+func (s *TemplateSvc) createContainerTemplate(ctx context.Context, svcReq *TmplExpandSvcReq) (*TemplateSvcResp, error) {
 	svcResp := &TemplateSvcResp{}
 	var err error
 	//var tmplId int64
@@ -144,17 +304,9 @@ func (s *TemplateSvc) createAction(ctx context.Context, svcReq *TmplExpandSvcReq
 		}
 		dbo.Commit()
 	}()
-	serviceCluster := &db.ServiceCluster{}
-	serviceClusterId := cast.ToInt64(svcReq.TmplInfo.ServiceClusterId)
-	if err = db.Get(serviceClusterId, serviceCluster); err != nil {
-		log.Logger.Errorf("db tabel:%v error:%v", serviceCluster.TableName(), err)
-		return nil, err
-	}
-
-	if err = db.UpdatesByIds(serviceCluster, []int64{serviceClusterId}, map[string]interface{}{
-		"bridgx_cluster": svcReq.TmplInfo.BridgxClusname,
-	}, dbo); err != nil {
-		log.Logger.Errorf("db tabel:%v error:%v", serviceCluster.TableName(), err)
+	//0. binding bridgx cluster
+	serviceCluster, err := s.serviceBindBridgxCluster(svcReq, dbo)
+	if err != nil {
 		return nil, err
 	}
 
@@ -225,8 +377,41 @@ func (s *TemplateSvc) createAction(ctx context.Context, svcReq *TmplExpandSvcReq
 	svcResp.TmplExpandSvcResp = &TmplExpandSvcResp{
 		TmplId: cast.ToString(tmplInfo.Id),
 	}
-
 	return svcResp, nil
+}
+
+func (s *TemplateSvc) createInstanceDeployTmpl(ctx context.Context, args *types.TmpInfo, deployInfo *types.DeployInfo, serviceName string, dbo *gorm.DB) (*db.ScheduleTemplate, error) {
+	var err error
+	tmplAttrs, _ := jsoniter.MarshalToString(&types.TmplAttrs{
+		RepoType:     deployInfo.RepoType,
+		RepoPath:     deployInfo.RepoPath,
+		RepoUser:     deployInfo.RepoUser,
+		RepoPassword: deployInfo.RepoPassword,
+	})
+	//schedule := db.ScheduleTemplate{}
+	//_ = db.QueryFirst(map[string]interface{}{
+	//	"service_cluster_id": args.ServiceClusterId,
+	//	"schedule_type":      constant.ScheduleTypeDeploy,
+	//}, &schedule)
+	//if schedule.Id != 0 {
+	//	return nil, fmt.Errorf("deploy template already exists")
+	//}
+	tmpl := &db.ScheduleTemplate{
+		TmplName:         args.TmplName,
+		ServiceName:      serviceName,
+		ServiceClusterId: cast.ToInt64(args.ServiceClusterId),
+		BridgxClusname:   args.BridgxClusname,
+		TmplAttrs:        tmplAttrs,
+		Description:      args.Describe,
+		DeployMode:       args.DeployMode,
+		ScheduleType:     constant.ScheduleTypeDeploy,
+	}
+	err = db.Create(tmpl, dbo)
+	if err != nil {
+		log.Logger.Error(err)
+		return nil, err
+	}
+	return tmpl, nil
 }
 
 func (s *TemplateSvc) createExpandTmpl(ctx context.Context, args *types.TmpInfo, serviceName string, needReverse bool, dbo *gorm.DB) (*db.ScheduleTemplate, *db.ScheduleTemplate, error) {
@@ -237,6 +422,7 @@ func (s *TemplateSvc) createExpandTmpl(ctx context.Context, args *types.TmpInfo,
 		ServiceClusterId: cast.ToInt64(args.ServiceClusterId),
 		BridgxClusname:   args.BridgxClusname,
 		Description:      args.Describe,
+		DeployMode:       args.DeployMode,
 		ScheduleType:     constant.ScheduleTypeExpand,
 	}
 	err = db.Create(obj, dbo)
@@ -365,6 +551,27 @@ func (s *TemplateSvc) List(ctx context.Context, serviceName string, page, pageSi
 	return ret, nil
 }
 
+func (s *TemplateSvc) ListDeployTemplates(ctx context.Context, serviceName string, page, pageSize, serviceClusterId int) (map[string]interface{}, error) {
+	var err error
+	list, total, err := repository.GetScheduleTemplateRepoInst().GetDeployTemplateList(ctx, serviceName, page, pageSize, serviceClusterId)
+	if err != nil {
+		log.Logger.Errorf(" func list error:%v", err)
+	}
+	ret := map[string]interface{}{
+		"deploy_expand_list": list,
+		"pager": struct {
+			PageNumber int   `json:"page_number"`
+			PageSize   int   `json:"page_size"`
+			Total      int64 `json:"total"`
+		}{
+			PageSize:   pageSize,
+			PageNumber: page,
+			Total:      total,
+		},
+	}
+	return ret, nil
+}
+
 func (s *TemplateSvc) InfoAction(ctx context.Context, svcReq *TmplInfoSvcReq) (*TemplateSvcResp, error) {
 	var err error
 	svcResp := &TmplInfoSvcResp{}
@@ -375,12 +582,22 @@ func (s *TemplateSvc) InfoAction(ctx context.Context, svcReq *TmplInfoSvcReq) (*
 		ServiceClusterId: tmpl.ServiceClusterId,
 		Describe:         tmpl.Description,
 		BridgxClusname:   tmpl.BridgxClusname,
+		DeployMode:       tmpl.DeployMode,
 	}
 	svcResp.TmplInfo = templInfo
 	var instrGroup []int64
 	if err = jsoniter.Unmarshal([]byte(tmpl.InstrGroup), &instrGroup); err != nil {
 		log.Logger.Error(err)
 		return nil, err
+	}
+	deployInfo := types.DeployInfo{}
+	if tmpl.TmplAttrs != "" {
+		tmplAttrs := &types.TmplAttrs{}
+		_ = jsoniter.UnmarshalFromString(tmpl.TmplAttrs, tmplAttrs)
+		deployInfo.RepoType = tmplAttrs.RepoType
+		deployInfo.RepoPath = tmplAttrs.RepoPath
+		deployInfo.RepoUser = tmplAttrs.RepoUser
+		deployInfo.RepoPassword = tmplAttrs.RepoPassword
 	}
 	instrRepo := repository.GetInstrRepoInst()
 	instrSvc := GetInstrSvcInst()
@@ -391,6 +608,23 @@ func (s *TemplateSvc) InfoAction(ctx context.Context, svcReq *TmplInfoSvcReq) (*
 			return nil, rRrr
 		}
 		switch instrInfo.InstrAction {
+		case instrSvc.NodeActBeforeDownload:
+			deployInfo.BeforeDownloadCmd = instrInfo.Cmd
+		case instrSvc.NodeActDownload:
+			params := &types.DownloadExec{}
+			_ = jsoniter.UnmarshalFromString(instrInfo.Params, params)
+			deployInfo.DeployFilePath = params.DeployFilePath
+			deployInfo.DeployFileName = params.DeployFileName
+		case instrSvc.NodeActBeforeDeploy:
+			deployInfo.BeforeDeployCmd = instrInfo.Cmd
+		case instrSvc.NodeActDeploy:
+			params := &types.DeployParams{}
+			_ = jsoniter.UnmarshalFromString(instrInfo.Params, params)
+			deployInfo.DeployCmd = instrInfo.Cmd
+			deployInfo.EnvVariables = params.EnvVariables
+		case instrSvc.NodeActAfterDeploy:
+			deployInfo.AfterDeployCmd = instrInfo.Cmd
+
 		case instrSvc.NodeActInitBase:
 			params := &types.BaseEnv{}
 			if err = jsoniter.Unmarshal([]byte(instrInfo.Params), params); err != nil {
@@ -428,10 +662,44 @@ func (s *TemplateSvc) InfoAction(ctx context.Context, svcReq *TmplInfoSvcReq) (*
 			svcResp.Mount = params
 		}
 	}
+	svcResp.DeployInfo = &deployInfo
 	return &TemplateSvcResp{TmplInfoSvcResp: svcResp}, nil
 }
 
 func (s *TemplateSvc) UpdateAction(ctx context.Context, svcReq *TmplUpdateSvcReq) (*TemplateSvcResp, error) {
+	var svcResp *TemplateSvcResp
+	var err error
+	if svcReq.TmplInfo.DeployMode == types.DeployModeInstance {
+		svcResp, err = s.UpdateInstanceTemplate(ctx, svcReq)
+	} else {
+		svcResp, err = s.UpdateContainerTemplate(ctx, svcReq)
+	}
+	return svcResp, err
+}
+
+func (s *TemplateSvc) UpdateInstanceTemplate(ctx context.Context, svcReq *TmplUpdateSvcReq) (*TemplateSvcResp, error) {
+	dbo := client.WriteDBCli.Debug().Begin()
+	var err error
+	defer func() { // 事务保证
+		if err != nil {
+			dbo.Rollback()
+			return
+		}
+		dbo.Commit()
+	}()
+	template := &db.ScheduleTemplate{Id: svcReq.TmplExpandId}
+	err = dbo.Where(template).Delete(template).Error
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.createInstanceTemplate(ctx, &TmplExpandSvcReq{
+		TmplInfo:   svcReq.TmplInfo,
+		DeployInfo: svcReq.DeployInfo,
+	}, dbo)
+	return resp, err
+}
+
+func (s *TemplateSvc) UpdateContainerTemplate(ctx context.Context, svcReq *TmplUpdateSvcReq) (*TemplateSvcResp, error) {
 	svcResp := &TmplUpdateSvcResp{}
 	var err error
 	var instrGroup = make([]int64, 0)
