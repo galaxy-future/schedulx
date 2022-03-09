@@ -23,26 +23,19 @@ func SecondsToInt64(costTime float64) (int64, int64) {
 
 func Interface2Int64(inter interface{}) int64 {
 	var temp int64
-	switch inter.(type) {
+	switch v := inter.(type) {
 	case string:
-		temp, _ = strconv.ParseInt(inter.(string), 10, 64)
-		break
+		temp, _ = strconv.ParseInt(v, 10, 64)
 	case int64:
-		temp = inter.(int64)
-		break
+		temp = v
 	case int:
-		s := strconv.Itoa(inter.(int))
-		temp, _ = strconv.ParseInt(s, 10, 64)
-		break
+		temp = int64(v)
 	case int32:
-		temp = int64(inter.(int32))
-		break
+		temp = int64(v)
 	case float64:
-		tempStr := strconv.FormatFloat(inter.(float64), 'f', -1, 64)
-		temp, _ = strconv.ParseInt(tempStr, 10, 64)
-		break
+		temp = int64(v)
 	case json.Number:
-		temp, _ = inter.(json.Number).Int64()
+		temp, _ = v.Int64()
 	}
 	return temp
 }
